@@ -10,6 +10,7 @@ import 'mock_file.dart';
 import 'mock_file_factory.dart';
 import 'mock_firebase_storage.dart';
 import 'mock_storage_directory_provider.dart';
+import 'mock_upload_task.dart';
 
 void main() {
   late MockFirebaseStorage storage;
@@ -18,6 +19,7 @@ void main() {
   late MockDirectory directory;
   late MockFileFactory fileFactory;
   late MockFile file;
+  late MockUploadTask uploadTask;
 
   final data = Uint8List(16);
 
@@ -28,14 +30,17 @@ void main() {
     directory = MockDirectory();
     file = MockFile();
     fileFactory = MockFileFactory(file: file);
+    uploadTask = MockUploadTask();
 
     registerFallbackValue(data);
 
     when(() => directory.path).thenReturn("directory");
     when(() => reference.getData()).thenAnswer((_) async => data);
     when(() => reference.delete()).thenAnswer((_) async {});
+    when(() => reference.putFile(file)).thenAnswer((_) => uploadTask);
     when(() => storageDirectoryProvider.directory).thenReturn(directory);
     when(() => file.delete()).thenAnswer((_) async => file);
+
     when(
       () => file.create(recursive: true, exclusive: false),
     ).thenAnswer((_) async => file);
@@ -58,6 +63,7 @@ void main() {
   }
 
   void setupFilePath(String path) {
+    when(() => file.path).thenReturn(path);
     when(
       () => storageDirectoryProvider.fileAtRelativePath(path),
     ).thenReturn(file);
@@ -373,6 +379,32 @@ void main() {
           expect(notifies, 2);
           verify(() => file.delete());
           verify(() => reference.delete());
+        },
+      );
+
+      test(
+        "$fileName - Inserting a file will stick that file in cache and in firebase.",
+        () async {
+          setupFilePath(platformPath);
+          setupRefPath(unixPath);
+          setupFileExists(true);
+
+          var notifies = 0;
+
+          final cache = build();
+          cache.addListener(() => notifies++);
+
+          await cache.insertFile(file, fileName);
+
+          expect(
+            cache.getFirebaseSync(
+              firebasePath: fileName,
+              retrieveIfMissing: false,
+            ),
+            data,
+          );
+          expect(notifies, 1);
+          verify(() => reference.putFile(file));
         },
       );
     }

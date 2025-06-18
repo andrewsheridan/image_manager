@@ -56,19 +56,6 @@ class ImageManager extends ChangeNotifier {
     return output;
   }
 
-  /// I don't like the API for this.
-  ///
-  /// I think I'd hopefully know if I'm grabbing from firebase or if I'm grabbing locally.
-  ///
-  /// If it comes from firebase, then the key will be that full firebase location.
-  ///
-  /// If I'm grabbing locally, then it'll just be the name of the file.
-  ///
-  ///
-  /// RULES: When getting local file, file name/path is not manipulated at all.
-  /// When getting a firebase image, the version retrieved from Firebase will have path manipulated for unix, and the local copy will be updated to local platform separators.
-  /// The firebase image path as a key to the cache will remain unchanged.
-
   Future<Uint8List?> getLocalAsync(String fileName) async {
     _logger.finest("getLocalAsync $fileName");
     final localPath = fileName.toLocalPlatformSeparators();
@@ -183,10 +170,11 @@ class ImageManager extends ChangeNotifier {
 
   Future<void> insertFile(File file, String firebasePath) async {
     try {
-      _imagesInMemory[basename(firebasePath)] = await file.readAsBytes();
+      final bytes = await file.readAsBytes();
+      _imagesInMemory[firebasePath.toLocalPlatformSeparators()] = bytes;
       notifyListeners();
 
-      await _storage.ref(firebasePath).putFile(file);
+      await _storage.ref(firebasePath.toUnixStyleSeparators()).putFile(file);
     } catch (ex) {
       _logger.severe("Failed to upload file ${file.path} to $firebasePath.");
     }
@@ -199,11 +187,11 @@ class ImageManager extends ChangeNotifier {
   ) async {
     try {
       _logger.fine("Inserting data to $firebasePath of type $contentType.");
-      _imagesInMemory[basename(firebasePath)] = data;
+      _imagesInMemory[firebasePath.toLocalPlatformSeparators()] = data;
       notifyListeners();
 
       await _storage
-          .ref(firebasePath)
+          .ref(firebasePath.toUnixStyleSeparators())
           .putData(data, SettableMetadata(contentType: contentType));
     } catch (ex) {
       _logger.severe("Failed to upload data to $firebasePath.");
