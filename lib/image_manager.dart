@@ -34,17 +34,23 @@ class ImageManager extends ChangeNotifier {
        _storageDirectoryProvider = storageDirectoryProvider,
        _fileFactory = fileFactory;
 
-  Uint8List? getLocalSync(String fileName) {
+  Uint8List? getLocalSync({
+    required String fileName,
+    required bool retrieveIfMissing,
+  }) {
     final output = _imagesInMemory[fileName.toLocalPlatformSeparators()];
-    if (output == null) {
+    if (output == null && retrieveIfMissing) {
       getLocalAsync(fileName);
     }
     return output;
   }
 
-  Uint8List? getFirebaseSync(String firebasePath) {
+  Uint8List? getFirebaseSync({
+    required String firebasePath,
+    required bool retrieveIfMissing,
+  }) {
     final output = _imagesInMemory[firebasePath.toLocalPlatformSeparators()];
-    if (output == null) {
+    if (output == null && retrieveIfMissing) {
       getFirebaseAsync(firebasePath);
     }
     return output;
@@ -149,44 +155,30 @@ class ImageManager extends ChangeNotifier {
     return data;
   }
 
-  // TODO: Removing files.
-  Future<void> removeLocalFile(String fileName) async {}
+  Future<void> removeLocalFile(String fileName) async {
+    _logger.info("Deleting locally stored file at $fileName");
+    _imagesInMemory.remove(fileName.toLocalPlatformSeparators());
+    notifyListeners();
 
-  Future<void> removeFirebaseFile(String firebasePath) async {}
-
-  Future<void> removeFile({
-    required String fileName,
-    required String? firebasePath,
-  }) async {
-    if (!kIsWeb) {
-      try {
-        final file = _storageDirectoryProvider.fileAtRelativePath(fileName);
-        if (await file.exists()) {
-          _logger.info("Deleting locally stored file $fileName.");
-          await file.delete();
-        }
-      } catch (ex) {
-        _logger.severe(
-          "Failed to delete locally stored file at $fileName.",
-          ex,
-        );
+    try {
+      final file = _fileFactory.fromPath(fileName.toLocalPlatformSeparators());
+      if (await file.exists()) {
+        await file.delete();
       }
+    } catch (ex) {
+      _logger.severe("Failed to delete local file $fileName");
     }
+  }
 
-    if (firebasePath != null) {
-      final unixStylePath = firebasePath.toUnixStyleSeparators();
-      try {
-        _logger.info("Deleting cloud stored file at $unixStylePath.");
-        await _storage.ref(unixStylePath).delete();
-      } catch (ex) {
-        _logger.severe(
-          "Failed to delete cloud stored file at $unixStylePath.",
-          ex,
-        );
-      }
+  Future<void> removeFirebaseFile(String firebasePath) async {
+    _logger.info("Deleting cloud file at $firebasePath");
+    await removeLocalFile(firebasePath);
+
+    try {
+      await _storage.ref(firebasePath.toUnixStyleSeparators()).delete();
+    } catch (ex) {
+      _logger.severe("Failed to delete cloud file at $firebasePath");
     }
-
-    _imagesInMemory.remove(fileName);
   }
 
   Future<void> insertFile(File file, String firebasePath) async {
