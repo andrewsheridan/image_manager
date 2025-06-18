@@ -33,6 +33,9 @@ class ImageManager extends ChangeNotifier {
        _directory = directory,
        _fileFactory = fileFactory;
 
+  String getFullFilePath(String fileName) =>
+      _directory == null ? fileName : join(_directory.path, basename(fileName));
+
   Uint8List? getLocalSync({
     required String fileName,
     required bool retrieveIfMissing,

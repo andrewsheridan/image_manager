@@ -482,8 +482,6 @@ void main() {
           );
         },
       );
-
-      // TODO: Using Compression Settings for images.
     }
   });
 }
