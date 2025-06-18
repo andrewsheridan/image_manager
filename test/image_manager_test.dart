@@ -1,3 +1,4 @@
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_manager/image_manager.dart';
@@ -38,6 +39,13 @@ void main() {
     when(() => reference.getData()).thenAnswer((_) async => data);
     when(() => reference.delete()).thenAnswer((_) async {});
     when(() => reference.putFile(file)).thenAnswer((_) => uploadTask);
+    when(
+      () =>
+          reference.putData(data, SettableMetadata(contentType: "image/jpeg")),
+    ).thenAnswer((_) => uploadTask);
+    when(
+      () => reference.putData(data, SettableMetadata(contentType: "image/png")),
+    ).thenAnswer((_) => uploadTask);
     when(() => storageDirectoryProvider.directory).thenReturn(directory);
     when(() => file.delete()).thenAnswer((_) async => file);
 
@@ -76,7 +84,7 @@ void main() {
   group("Testing different platform separators.", () {
     for (final fileName in [
       "something.png",
-      "directory/filename.png",
+      "directory/filename.jpeg",
       "directory\\filename.png",
     ]) {
       final platformPath = fileName.toLocalPlatformSeparators();
@@ -383,7 +391,7 @@ void main() {
       );
 
       test(
-        "$fileName - Inserting a file will stick that file in cache and in firebase.",
+        "$fileName - Uploading a file will stick that file in cache and in firebase.",
         () async {
           setupFilePath(platformPath);
           setupRefPath(unixPath);
@@ -394,7 +402,7 @@ void main() {
           final cache = build();
           cache.addListener(() => notifies++);
 
-          await cache.insertFile(file, fileName);
+          await cache.uploadFile(file, fileName);
 
           expect(
             cache.getFirebaseSync(
@@ -407,6 +415,87 @@ void main() {
           verify(() => reference.putFile(file));
         },
       );
+
+      test(
+        "$fileName - Uploading data will stick that file in cache and in firebase.",
+        () async {
+          setupFilePath(platformPath);
+          setupRefPath(unixPath);
+          setupFileExists(true);
+
+          var notifies = 0;
+
+          final cache = build();
+          cache.addListener(() => notifies++);
+
+          final contentType = ImageManager.getImageContentType(fileName);
+
+          await cache.uploadData(data, fileName, contentType);
+
+          expect(
+            cache.getFirebaseSync(
+              firebasePath: fileName,
+              retrieveIfMissing: false,
+            ),
+            data,
+          );
+          expect(notifies, 1);
+          verify(
+            () => reference.putData(
+              data,
+              any(
+                that: isA<SettableMetadata>().having(
+                  (m) => m.contentType,
+                  "Has Content Type Match",
+                  contentType,
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+      test(
+        "$fileName - Uploading image will stick that file in cache and in firebase.",
+        () async {
+          setupFilePath(platformPath);
+          setupRefPath(unixPath);
+          setupFileExists(true);
+
+          var notifies = 0;
+
+          final cache = build();
+          cache.addListener(() => notifies++);
+
+          final contentType = ImageManager.getImageContentType(fileName);
+
+          await cache.uploadImage(data, fileName);
+
+          expect(
+            cache.getFirebaseSync(
+              firebasePath: fileName,
+              retrieveIfMissing: false,
+            ),
+            data,
+          );
+          expect(notifies, 1);
+
+          verify(
+            () => reference.putData(
+              data,
+              any(
+                that: isA<SettableMetadata>().having(
+                  (m) => m.contentType,
+                  "Has Content Type Match",
+                  contentType,
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+      // TODO: Using Compression Settings for images.
     }
   });
 }

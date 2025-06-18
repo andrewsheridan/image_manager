@@ -168,7 +168,7 @@ class ImageManager extends ChangeNotifier {
     }
   }
 
-  Future<void> insertFile(File file, String firebasePath) async {
+  Future<void> uploadFile(File file, String firebasePath) async {
     try {
       final bytes = await file.readAsBytes();
       _imagesInMemory[firebasePath.toLocalPlatformSeparators()] = bytes;
@@ -180,26 +180,28 @@ class ImageManager extends ChangeNotifier {
     }
   }
 
-  Future<void> insertData(
+  Future<void> uploadData(
     Uint8List data,
     String firebasePath,
     String contentType,
   ) async {
     try {
-      _logger.fine("Inserting data to $firebasePath of type $contentType.");
+      _logger.fine("Uploading data to $firebasePath of type $contentType.");
       _imagesInMemory[firebasePath.toLocalPlatformSeparators()] = data;
       notifyListeners();
 
+      final metadata = SettableMetadata(contentType: contentType);
+
       await _storage
           .ref(firebasePath.toUnixStyleSeparators())
-          .putData(data, SettableMetadata(contentType: contentType));
+          .putData(data, metadata);
     } catch (ex) {
       _logger.severe("Failed to upload data to $firebasePath.");
     }
   }
 
-  Future<void> insertImage(Uint8List data, String firebasePath) async {
-    return insertData(data, firebasePath, getImageContentType(firebasePath));
+  Future<void> uploadImage(Uint8List data, String firebasePath) async {
+    return uploadData(data, firebasePath, getImageContentType(firebasePath));
   }
 
   static String getImageContentType(String filePath) =>
