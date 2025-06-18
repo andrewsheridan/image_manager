@@ -14,11 +14,10 @@ import 'package:path/path.dart';
 
 import 'file_factory.dart';
 import 'pick_and_copy_image_result.dart';
-import 'storage_directory_provider.dart';
 
 class ImageManager extends ChangeNotifier {
   final FirebaseStorage _storage;
-  final StorageDirectoryProvider _storageDirectoryProvider;
+  final Directory? _directory;
   final FileFactory _fileFactory;
   final Logger _logger = Logger("ImageManager");
 
@@ -28,10 +27,10 @@ class ImageManager extends ChangeNotifier {
 
   ImageManager({
     required FirebaseStorage storage,
-    required StorageDirectoryProvider storageDirectoryProvider,
+    required Directory? directory,
     required FileFactory fileFactory,
   }) : _storage = storage,
-       _storageDirectoryProvider = storageDirectoryProvider,
+       _directory = directory,
        _fileFactory = fileFactory;
 
   Uint8List? getLocalSync({
@@ -80,9 +79,7 @@ class ImageManager extends ChangeNotifier {
 
       // Future work: If web, cache locally somehow.
       if (!kIsWeb) {
-        final localStoragePath = _storageDirectoryProvider.relativePath(
-          localPath,
-        );
+        final localStoragePath = localPath.toLocalPlatformSeparators();
         final localStorageFile = _fileFactory.fromPath(localStoragePath);
 
         if (await localStorageFile.exists()) {
@@ -236,7 +233,7 @@ class ImageManager extends ChangeNotifier {
 
       final bytes = await pickedFile.readAsBytes();
 
-      if (kIsWeb) {
+      if (kIsWeb || _directory == null) {
         return PickAndCopyImageResult(
           fileName: basename(pickedFile.path),
           imagePath: pickedFile.path,
@@ -244,7 +241,7 @@ class ImageManager extends ChangeNotifier {
         );
       }
 
-      final directory = _storageDirectoryProvider.directory;
+      final directory = _directory;
       final fileName = fileNameOverride == null
           ? basename(pickedFile.path)
           : "$fileNameOverride${extension(pickedFile.path)}";
@@ -271,10 +268,12 @@ class ImageManager extends ChangeNotifier {
   }
 
   Future<File> importImage(Uint8List imageData, {String? fileName}) async {
-    final directory = _storageDirectoryProvider.directory;
+    if (_directory == null) {
+      throw ("Directory was null when attempting to import image.");
+    }
 
     fileName ??= "${DateTime.now().millisecondsSinceEpoch}.png";
-    String path = join(directory.path, fileName).toLocalPlatformSeparators();
+    String path = join(_directory.path, fileName).toLocalPlatformSeparators();
     final imageFile = _fileFactory.fromPath(path);
 
     await imageFile.create(recursive: true);

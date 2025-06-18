@@ -4,18 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_manager/image_manager.dart';
 import 'package:image_manager/string_extensions.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:path/path.dart';
 
 import 'mock_directory.dart';
 import 'mock_file.dart';
 import 'mock_file_factory.dart';
 import 'mock_firebase_storage.dart';
-import 'mock_storage_directory_provider.dart';
 import 'mock_upload_task.dart';
 
 void main() {
   late MockFirebaseStorage storage;
-  late MockStorageDirectoryProvider storageDirectoryProvider;
   late MockReference reference;
   late MockDirectory directory;
   late MockFileFactory fileFactory;
@@ -26,7 +23,6 @@ void main() {
 
   setUp(() {
     storage = MockFirebaseStorage();
-    storageDirectoryProvider = MockStorageDirectoryProvider();
     reference = MockReference();
     directory = MockDirectory();
     file = MockFile();
@@ -46,7 +42,6 @@ void main() {
     when(
       () => reference.putData(data, SettableMetadata(contentType: "image/png")),
     ).thenAnswer((_) => uploadTask);
-    when(() => storageDirectoryProvider.directory).thenReturn(directory);
     when(() => file.delete()).thenAnswer((_) async => file);
 
     when(
@@ -54,15 +49,11 @@ void main() {
     ).thenAnswer((_) async => file);
     when(() => file.readAsBytes()).thenAnswer((_) async => data);
     when(() => file.writeAsBytes(data)).thenAnswer((_) async => file);
-    when(() => storageDirectoryProvider.relativePath(any())).thenAnswer(
-      (invocation) =>
-          join(directory.path, invocation.positionalArguments.first.toString()),
-    );
   });
 
   ImageManager build() => ImageManager(
     storage: storage,
-    storageDirectoryProvider: storageDirectoryProvider,
+    directory: directory,
     fileFactory: fileFactory,
   );
 
@@ -72,9 +63,6 @@ void main() {
 
   void setupFilePath(String path) {
     when(() => file.path).thenReturn(path);
-    when(
-      () => storageDirectoryProvider.fileAtRelativePath(path),
-    ).thenReturn(file);
   }
 
   void setupRefPath(String path) {
