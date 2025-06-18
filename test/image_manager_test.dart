@@ -1,7 +1,7 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_manager/image_manager.dart';
+import 'package:image_manager/string_extensions.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart';
 
@@ -46,9 +46,6 @@ void main() {
       (invocation) =>
           join(directory.path, invocation.positionalArguments.first.toString()),
     );
-    when(
-      () => storageDirectoryProvider.fileAtRelativePath(any()),
-    ).thenReturn(file);
   });
 
   ImageManager build() => ImageManager(
@@ -61,202 +58,220 @@ void main() {
     when(() => file.exists()).thenAnswer((_) async => exists);
   }
 
-  // TODO: Maybe have a few different groups, which each use a different style of separator.
+  void setupFilePath(String path) {
+    when(
+      () => storageDirectoryProvider.fileAtRelativePath(path),
+    ).thenReturn(file);
+  }
 
-  test(
-    "Given the local file is not yet in cache, when getLocalSync called, then null will be returned and the retrieval process will be initiated.",
-    () async {
-      var notifies = 0;
+  group("Testing different platform separators.", () {
+    for (final fileName in [
+      "something.png",
+      "directory/filename.png",
+      "directory\\filename.png",
+    ]) {
+      final platformPath = fileName.toLocalPlatformSeparators();
+      final unixPath = fileName.toUnixStyleSeparators();
 
-      final cache = build();
-      cache.addListener(() => notifies++);
+      test(
+        "$fileName Given the local file is not yet in cache, when getLocalSync called, then null will be returned and the retrieval process will be initiated.",
+        () async {
+          when(
+            () => storageDirectoryProvider.fileAtRelativePath(platformPath),
+          ).thenReturn(file);
+          setupFilePath(platformPath);
+          setupFileExists(true);
+          var notifies = 0;
 
-      setupFileExists(true);
+          final cache = build();
+          cache.addListener(() => notifies++);
 
-      final fileName = "something.png";
+          final fileName = "something.png";
 
-      expect(cache.getLocalSync(fileName), null);
-      expect(notifies, 0);
+          expect(cache.getLocalSync(fileName), null);
+          expect(notifies, 0);
 
-      await pumpEventQueue();
+          await pumpEventQueue();
 
-      expect(cache.getLocalSync(fileName), data);
-      expect(notifies, 1);
-      verify(() => file.readAsBytes());
+          expect(cache.getLocalSync(fileName), data);
+          expect(notifies, 1);
+          verify(() => file.readAsBytes());
 
-      expect(cache.getLocalSync(fileName), data);
-      expect(notifies, 1);
-      verifyNever(() => file.readAsBytes());
-    },
-  );
+          expect(cache.getLocalSync(fileName), data);
+          expect(notifies, 1);
+          verifyNever(() => file.readAsBytes());
+        },
+      );
 
-  test(
-    "Given the firebase file is not yet in cache, and not in local stoage, when getFirebaseSync is called, then null will be returned and the retrieval process will be initiated.",
-    () async {
-      var notifies = 0;
+      test(
+        "$fileName Given the firebase file is not yet in cache, and not in local stoage, when getFirebaseSync is called, then null will be returned and the retrieval process will be initiated.",
+        () async {
+          setupFilePath(platformPath);
+          setupFileExists(false);
 
-      final cache = build();
-      cache.addListener(() => notifies++);
+          var notifies = 0;
 
-      setupFileExists(false);
+          final cache = build();
+          cache.addListener(() => notifies++);
 
-      final fileName = "sessions/abcdef/something.png";
+          final fileName = "sessions/abcdef/something.png";
 
-      expect(cache.getFirebaseSync(fileName), null);
-      expect(notifies, 0);
+          expect(cache.getFirebaseSync(fileName), null);
+          expect(notifies, 0);
 
-      await pumpEventQueue();
+          await pumpEventQueue();
 
-      expect(cache.getFirebaseSync(fileName), data);
-      expect(notifies, 1);
+          expect(cache.getFirebaseSync(fileName), data);
+          expect(notifies, 1);
 
-      verify(() => file.create(recursive: true, exclusive: false));
-      verify(() => file.writeAsBytes(data));
-      verify(() => storage.ref(fileName));
-      verify(() => reference.getData());
-      verifyNever(() => file.readAsBytes());
+          verify(() => file.create(recursive: true, exclusive: false));
+          verify(() => file.writeAsBytes(data));
+          verify(() => storage.ref(fileName));
+          verify(() => reference.getData());
+          verifyNever(() => file.readAsBytes());
 
-      expect(cache.getFirebaseSync(fileName), data);
-      expect(notifies, 1);
+          expect(cache.getFirebaseSync(fileName), data);
+          expect(notifies, 1);
 
-      verifyNever(() => file.create(recursive: true, exclusive: false));
-      verifyNever(() => file.writeAsBytes(data));
-      verifyNever(() => storage.ref(fileName));
-      verifyNever(() => reference.getData());
-      verifyNever(() => file.readAsBytes());
-    },
-  );
+          verifyNever(() => file.create(recursive: true, exclusive: false));
+          verifyNever(() => file.writeAsBytes(data));
+          verifyNever(() => storage.ref(fileName));
+          verifyNever(() => reference.getData());
+          verifyNever(() => file.readAsBytes());
+        },
+      );
 
-  test(
-    "Given the firebase file is in local storage but not memory, when getFirebaseSync is called, then null will be returned and the file will be retrivied from storage.",
-    () async {
-      var notifies = 0;
+      test(
+        "$fileName Given the firebase file is in local storage but not memory, when getFirebaseSync is called, then null will be returned and the file will be retrivied from storage.",
+        () async {
+          setupFilePath(platformPath);
 
-      final cache = build();
-      cache.addListener(() => notifies++);
+          var notifies = 0;
 
-      setupFileExists(true);
+          final cache = build();
+          cache.addListener(() => notifies++);
 
-      final fileName = "sessions/abcdef/something.png";
+          setupFileExists(true);
 
-      expect(cache.getFirebaseSync(fileName), null);
-      expect(notifies, 0);
+          final fileName = "sessions/abcdef/something.png";
 
-      await pumpEventQueue();
+          expect(cache.getFirebaseSync(fileName), null);
+          expect(notifies, 0);
 
-      expect(cache.getFirebaseSync(fileName), data);
-      expect(notifies, 1);
+          await pumpEventQueue();
 
-      verifyNever(() => file.create(recursive: true, exclusive: false));
-      verifyNever(() => file.writeAsBytes(data));
-      verifyNever(() => storage.ref(fileName));
-      verifyNever(() => reference.getData());
-      verify(() => file.readAsBytes());
+          expect(cache.getFirebaseSync(fileName), data);
+          expect(notifies, 1);
 
-      expect(cache.getFirebaseSync(fileName), data);
-      expect(notifies, 1);
+          verifyNever(() => file.create(recursive: true, exclusive: false));
+          verifyNever(() => file.writeAsBytes(data));
+          verifyNever(() => storage.ref(fileName));
+          verifyNever(() => reference.getData());
+          verify(() => file.readAsBytes());
 
-      verifyNever(() => file.create(recursive: true, exclusive: false));
-      verifyNever(() => file.writeAsBytes(data));
-      verifyNever(() => storage.ref(fileName));
-      verifyNever(() => reference.getData());
-      verifyNever(() => file.readAsBytes());
-    },
-  );
+          expect(cache.getFirebaseSync(fileName), data);
+          expect(notifies, 1);
 
-  test(
-    "Given the local file is not yet in cache, when getLocalAsync called, then the file will be retrieved, cached and returned.",
-    () async {
-      var notifies = 0;
+          verifyNever(() => file.create(recursive: true, exclusive: false));
+          verifyNever(() => file.writeAsBytes(data));
+          verifyNever(() => storage.ref(fileName));
+          verifyNever(() => reference.getData());
+          verifyNever(() => file.readAsBytes());
+        },
+      );
 
-      final cache = build();
-      cache.addListener(() => notifies++);
+      test(
+        "$fileName Given the local file is not yet in cache, when getLocalAsync called, then the file will be retrieved, cached and returned.",
+        () async {
+          setupFilePath(platformPath);
+          var notifies = 0;
 
-      setupFileExists(true);
+          final cache = build();
+          cache.addListener(() => notifies++);
 
-      final fileName = "something.png";
+          setupFileExists(true);
 
-      var result = await cache.getLocalAsync(fileName);
+          var result = await cache.getLocalAsync(fileName);
 
-      expect(result, data);
-      expect(notifies, 1);
-      verify(() => file.readAsBytes());
+          expect(result, data);
+          expect(notifies, 1);
+          verify(() => file.readAsBytes());
 
-      result = await cache.getLocalAsync(fileName);
+          result = await cache.getLocalAsync(fileName);
 
-      expect(result, data);
-      expect(notifies, 1);
-      verifyNever(() => file.readAsBytes());
-    },
-  );
+          expect(result, data);
+          expect(notifies, 1);
+          verifyNever(() => file.readAsBytes());
+        },
+      );
 
-  test(
-    "Given the firebase file is not yet in cache, and not in local stoage, when getFirebaseSync is called, then the value will be retrieved, cached, and stored locally.",
-    () async {
-      var notifies = 0;
+      test(
+        "$fileName Given the firebase file is not yet in cache, and not in local stoage, when getFirebaseSync is called, then the value will be retrieved, cached, and stored locally.",
+        () async {
+          setupFilePath(platformPath);
+          var notifies = 0;
 
-      final cache = build();
-      cache.addListener(() => notifies++);
+          final cache = build();
+          cache.addListener(() => notifies++);
 
-      setupFileExists(false);
+          setupFileExists(false);
 
-      final fileName = "sessions/abcdef/something.png";
+          var result = await cache.getFirebaseAsync(fileName);
 
-      var result = await cache.getFirebaseAsync(fileName);
+          expect(result, data);
+          expect(notifies, 1);
+          verify(() => file.create(recursive: true, exclusive: false));
+          verify(() => file.writeAsBytes(data));
+          verify(() => storage.ref(unixPath));
+          verify(() => reference.getData());
+          verifyNever(() => file.readAsBytes());
 
-      expect(result, data);
-      expect(notifies, 1);
-      verify(() => file.create(recursive: true, exclusive: false));
-      verify(() => file.writeAsBytes(data));
-      verify(() => storage.ref(fileName));
-      verify(() => reference.getData());
-      verifyNever(() => file.readAsBytes());
+          result = await cache.getFirebaseAsync(fileName);
 
-      result = await cache.getFirebaseAsync(fileName);
+          expect(result, data);
+          expect(notifies, 1);
 
-      expect(result, data);
-      expect(notifies, 1);
+          verifyNever(() => file.create(recursive: true, exclusive: false));
+          verifyNever(() => file.writeAsBytes(data));
+          verifyNever(() => storage.ref(unixPath));
+          verifyNever(() => reference.getData());
+          verifyNever(() => file.readAsBytes());
+        },
+      );
 
-      verifyNever(() => file.create(recursive: true, exclusive: false));
-      verifyNever(() => file.writeAsBytes(data));
-      verifyNever(() => storage.ref(fileName));
-      verifyNever(() => reference.getData());
-      verifyNever(() => file.readAsBytes());
-    },
-  );
+      test(
+        "$fileName Given the firebase file is in local storage but not memory, when getFirebaseAsync is called, then the file will be retrieved and cached from storage.",
+        () async {
+          setupFilePath(platformPath);
+          var notifies = 0;
 
-  test(
-    "Given the firebase file is in local storage but not memory, when getFirebaseAsync is called, then the file will be retrieved and cached from storage.",
-    () async {
-      var notifies = 0;
+          final cache = build();
+          cache.addListener(() => notifies++);
 
-      final cache = build();
-      cache.addListener(() => notifies++);
+          setupFileExists(true);
 
-      setupFileExists(true);
+          var result = await cache.getFirebaseAsync(fileName);
 
-      final fileName = "sessions/abcdef/something.png";
+          expect(result, data);
+          expect(notifies, 1);
+          verifyNever(() => file.create(recursive: true, exclusive: false));
+          verifyNever(() => file.writeAsBytes(data));
+          verifyNever(() => storage.ref(fileName));
+          verifyNever(() => reference.getData());
+          verify(() => file.readAsBytes());
 
-      var result = await cache.getFirebaseAsync(fileName);
+          result = await cache.getFirebaseAsync(fileName);
 
-      expect(result, data);
-      expect(notifies, 1);
-      verifyNever(() => file.create(recursive: true, exclusive: false));
-      verifyNever(() => file.writeAsBytes(data));
-      verifyNever(() => storage.ref(fileName));
-      verifyNever(() => reference.getData());
-      verify(() => file.readAsBytes());
+          expect(result, data);
+          expect(notifies, 1);
 
-      result = await cache.getFirebaseAsync(fileName);
-
-      expect(result, data);
-      expect(notifies, 1);
-
-      verifyNever(() => file.create(recursive: true, exclusive: false));
-      verifyNever(() => file.writeAsBytes(data));
-      verifyNever(() => storage.ref(fileName));
-      verifyNever(() => reference.getData());
-      verifyNever(() => file.readAsBytes());
-    },
-  );
+          verifyNever(() => file.create(recursive: true, exclusive: false));
+          verifyNever(() => file.writeAsBytes(data));
+          verifyNever(() => storage.ref(fileName));
+          verifyNever(() => reference.getData());
+          verifyNever(() => file.readAsBytes());
+        },
+      );
+    }
+  });
 }

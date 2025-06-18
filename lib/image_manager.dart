@@ -22,7 +22,7 @@ class ImageManager extends ChangeNotifier {
   final FileFactory _fileFactory;
   final Logger _logger = Logger("ImageManager");
 
-  /// The key for this will always be whatever format the path was passed in.
+  /// The key for this will always be whatever format for the local filesystem is.
   final Map<String, Uint8List> _imagesInMemory = {};
   final Set<String> _retrievingFiles = {};
 
@@ -35,7 +35,7 @@ class ImageManager extends ChangeNotifier {
        _fileFactory = fileFactory;
 
   Uint8List? getLocalSync(String fileName) {
-    final output = _imagesInMemory[fileName];
+    final output = _imagesInMemory[fileName.toLocalPlatformSeparators()];
     if (output == null) {
       getLocalAsync(fileName);
     }
@@ -43,7 +43,7 @@ class ImageManager extends ChangeNotifier {
   }
 
   Uint8List? getFirebaseSync(String firebasePath) {
-    final output = _imagesInMemory[firebasePath];
+    final output = _imagesInMemory[firebasePath.toLocalPlatformSeparators()];
     if (output == null) {
       getFirebaseAsync(firebasePath);
     }
@@ -65,9 +65,10 @@ class ImageManager extends ChangeNotifier {
 
   Future<Uint8List?> getLocalAsync(String fileName) async {
     _logger.finest("getLocalAsync $fileName");
-    if (_retrievingFiles.contains(fileName)) {
+    final localPath = fileName.toLocalPlatformSeparators();
+    if (_retrievingFiles.contains(localPath)) {
       _logger.fine(
-        "Retrieval already initiated for image $fileName. Returning.",
+        "Retrieval already initiated for image $localPath. Returning.",
       );
       return null;
     }
@@ -75,33 +76,36 @@ class ImageManager extends ChangeNotifier {
     Uint8List? bytes;
 
     try {
-      _logger.fine("Retrieving image at $fileName.");
+      _logger.fine("Retrieving image at $localPath.");
 
-      if (_imagesInMemory[fileName] != null) {
-        _logger.fine("Using cached version of image $fileName.");
-        return _imagesInMemory[fileName]!;
+      if (_imagesInMemory[localPath] != null) {
+        _logger.fine("Using cached version of image $localPath.");
+        return _imagesInMemory[localPath]!;
       }
 
-      _retrievingFiles.add(fileName);
+      _retrievingFiles.add(localPath);
 
       // Future work: If web, cache locally somehow.
       if (!kIsWeb) {
         final localStoragePath = _storageDirectoryProvider.relativePath(
-          fileName,
+          localPath,
         );
         final localStorageFile = _fileFactory.fromPath(localStoragePath);
 
         if (await localStorageFile.exists()) {
-          _logger.fine("Image for $fileName found locally.");
+          _logger.fine("Image for $localPath found locally.");
           bytes = await localStorageFile.readAsBytes();
-          _imagesInMemory[fileName] = bytes;
+          _imagesInMemory[localPath] = bytes;
           notifyListeners();
         }
       }
     } catch (ex) {
-      _logger.severe("Failed to retrieve image from local storage.", ex);
+      _logger.severe(
+        "Failed to retrieve image $localPath from local storage.",
+        ex,
+      );
     } finally {
-      _retrievingFiles.remove(fileName);
+      _retrievingFiles.remove(localPath);
     }
 
     return bytes;
@@ -112,11 +116,14 @@ class ImageManager extends ChangeNotifier {
 
     if (localCopy != null) return localCopy;
 
+    final localPath = firebasePath.toLocalPlatformSeparators();
+    final unixStylePath = firebasePath.toUnixStyleSeparators();
+
     Uint8List? data;
 
     try {
-      _retrievingFiles.add(firebasePath);
-      final unixStylePath = firebasePath.toUnixStyleSeparators();
+      _retrievingFiles.add(unixStylePath);
+
       _logger.fine("Grabbing file $unixStylePath from Firebase.");
       final ref = _storage.ref(unixStylePath);
       data = await ref.getData();
@@ -125,23 +132,24 @@ class ImageManager extends ChangeNotifier {
         throw ("Could not find Firebase Storage entry at $unixStylePath.");
       }
 
-      _imagesInMemory[firebasePath] = data;
+      _imagesInMemory[localPath] = data;
       notifyListeners();
 
       if (!kIsWeb) {
-        await importImage(data, fileName: firebasePath);
+        await importImage(data, fileName: localPath);
       }
 
       _logger.fine("Image for $firebasePath retrieved from database.");
     } catch (ex) {
       _logger.severe("Failed to import image $firebasePath from Firebase.", ex);
     } finally {
-      _retrievingFiles.remove(firebasePath);
+      _retrievingFiles.remove(unixStylePath);
     }
 
     return data;
   }
 
+  // TODO: Removing files.
   Future<void> removeLocalFile(String fileName) async {}
 
   Future<void> removeFirebaseFile(String firebasePath) async {}
