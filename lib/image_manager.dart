@@ -153,7 +153,7 @@ class ImageManager extends ChangeNotifier {
         await file.delete();
       }
     } catch (ex) {
-      _logger.severe("Failed to delete local file $fileName");
+      _logger.severe("Failed to delete local file $fileName", ex);
     }
   }
 
@@ -164,7 +164,7 @@ class ImageManager extends ChangeNotifier {
     try {
       await _storage.ref(firebasePath.toUnixStyleSeparators()).delete();
     } catch (ex) {
-      _logger.severe("Failed to delete cloud file at $firebasePath");
+      _logger.severe("Failed to delete cloud file at $firebasePath", ex);
     }
   }
 
@@ -176,7 +176,10 @@ class ImageManager extends ChangeNotifier {
 
       await _storage.ref(firebasePath.toUnixStyleSeparators()).putFile(file);
     } catch (ex) {
-      _logger.severe("Failed to upload file ${file.path} to $firebasePath.");
+      _logger.severe(
+        "Failed to upload file ${file.path} to $firebasePath.",
+        ex,
+      );
     }
   }
 
@@ -196,7 +199,7 @@ class ImageManager extends ChangeNotifier {
           .ref(firebasePath.toUnixStyleSeparators())
           .putData(data, metadata);
     } catch (ex) {
-      _logger.severe("Failed to upload data to $firebasePath.");
+      _logger.severe("Failed to upload data to $firebasePath.", ex);
     }
   }
 
