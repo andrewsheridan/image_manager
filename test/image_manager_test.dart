@@ -18,7 +18,6 @@ void main() {
   late MockFileFactory fileFactory;
   late MockFile file;
   late MockUploadTask uploadTask;
-  late MockTaskSnapshot snapshot;
 
   final data = Uint8List(16);
 
@@ -28,20 +27,14 @@ void main() {
     directory = MockDirectory();
     file = MockFile();
     fileFactory = MockFileFactory(file: file);
-    snapshot = MockTaskSnapshot();
     uploadTask = MockUploadTask();
 
-    uploadTask.setupValue(snapshot);
-
     registerFallbackValue(data);
-    registerFallbackValue(snapshot);
 
     when(() => directory.path).thenReturn("directory");
     when(() => reference.getData()).thenAnswer((_) async => data);
     when(() => reference.delete()).thenAnswer((_) async {});
-    when(() => reference.putFile(file)).thenAnswer((_) {
-      return uploadTask;
-    });
+    when(() => reference.putFile(file)).thenAnswer((_) => uploadTask);
     when(
       () =>
           reference.putData(data, SettableMetadata(contentType: "image/jpeg")),
@@ -49,29 +42,6 @@ void main() {
     when(
       () => reference.putData(data, SettableMetadata(contentType: "image/png")),
     ).thenAnswer((_) => uploadTask);
-
-    // when(() => uploadTask.then<TaskSnapshot>(any())).thenAnswer((
-    //   invocation,
-    // ) async {
-    //   final onValue =
-    //       invocation.positionalArguments[0] as dynamic Function(TaskSnapshot);
-    //   return Future.value(onValue(snapshot));
-    // });
-    // when(
-    //   () => uploadTask.then<TaskSnapshot>(any(that: isA<TaskSnapshot>())),
-    // ).thenAnswer((invocation) async {
-    //   final onValue =
-    //       invocation.positionalArguments[0] as dynamic Function(TaskSnapshot);
-    //   return Future.value(onValue(snapshot));
-    // });
-    // when(
-    //   () =>
-    //       uploadTask.then<TaskSnapshot>(any(), onError: any(named: 'onError')),
-    // ).thenAnswer((invocation) async {
-    //   final onValue =
-    //       invocation.positionalArguments[0] as dynamic Function(TaskSnapshot);
-    //   return Future.value(onValue(snapshot));
-    // });
     when(() => file.delete()).thenAnswer((_) async => file);
 
     when(
@@ -382,13 +352,9 @@ void main() {
           setupFilePath(platformPath);
           setupRefPath(unixPath);
           var notifies = 0;
-          final uploading = <Set<String>>[];
 
           final cache = build();
-          cache.addListener(() {
-            notifies++;
-            uploading.add(cache.uploadingFiles);
-          });
+          cache.addListener(() => notifies++);
 
           setupFileExists(false);
 
@@ -420,13 +386,9 @@ void main() {
           setupFileExists(true);
 
           var notifies = 0;
-          final uploading = <Set<String>>[];
 
           final cache = build();
-          cache.addListener(() {
-            notifies++;
-            uploading.add(cache.uploadingFiles);
-          });
+          cache.addListener(() => notifies++);
 
           await cache.uploadFile(file, fileName);
 
@@ -437,12 +399,7 @@ void main() {
             ),
             data,
           );
-          expect(notifies, 3);
-          expect(uploading, [
-            {},
-            {unixPath},
-            {},
-          ]);
+          expect(notifies, 1);
           verify(() => reference.putFile(file));
         },
       );
@@ -455,13 +412,9 @@ void main() {
           setupFileExists(true);
 
           var notifies = 0;
-          final uploading = <Set<String>>[];
 
           final cache = build();
-          cache.addListener(() {
-            notifies++;
-            uploading.add(cache.uploadingFiles);
-          });
+          cache.addListener(() => notifies++);
 
           final contentType = ImageManager.getImageContentType(fileName);
 
@@ -474,12 +427,7 @@ void main() {
             ),
             data,
           );
-          expect(notifies, 3);
-          expect(uploading, [
-            {},
-            {unixPath},
-            {},
-          ]);
+          expect(notifies, 1);
           verify(
             () => reference.putData(
               data,
@@ -511,8 +459,6 @@ void main() {
 
           await cache.uploadImage(data, fileName);
 
-          expect(cache.uploadingFiles.length, 1);
-
           expect(
             cache.getFirebaseSync(
               firebasePath: fileName,
@@ -520,8 +466,7 @@ void main() {
             ),
             data,
           );
-          expect(notifies, 3);
-          expect(cache.uploadingFiles, isEmpty);
+          expect(notifies, 1);
 
           verify(
             () => reference.putData(

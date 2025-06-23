@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:io';
 import 'dart:ui';
 
@@ -25,9 +24,6 @@ class ImageManager extends ChangeNotifier {
   /// The key for this will always be whatever format for the local filesystem is.
   final Map<String, Uint8List> _imagesInMemory = {};
   final Set<String> _retrievingFiles = {};
-  final Set<String> _uploadingFiles = {};
-  UnmodifiableSetView<String> get uploadingFiles =>
-      UnmodifiableSetView(_uploadingFiles);
 
   ImageManager({
     required FirebaseStorage storage,
@@ -173,24 +169,17 @@ class ImageManager extends ChangeNotifier {
   }
 
   Future<void> uploadFile(File file, String firebasePath) async {
-    final unixPath = firebasePath.toUnixStyleSeparators();
     try {
-      _uploadingFiles.add(unixPath);
-      notifyListeners();
       final bytes = await file.readAsBytes();
       _imagesInMemory[firebasePath.toLocalPlatformSeparators()] = bytes;
       notifyListeners();
 
-      await _storage.ref(unixPath).putFile(file);
-      // _storage.ref(unixPath).putFile(file)
+      await _storage.ref(firebasePath.toUnixStyleSeparators()).putFile(file);
     } catch (ex) {
       _logger.severe(
         "Failed to upload file ${file.path} to $firebasePath.",
         ex,
       );
-    } finally {
-      _uploadingFiles.remove(unixPath);
-      notifyListeners();
     }
   }
 
@@ -199,22 +188,18 @@ class ImageManager extends ChangeNotifier {
     String firebasePath,
     String contentType,
   ) async {
-    final unixPath = firebasePath.toUnixStyleSeparators();
     try {
-      _uploadingFiles.add(unixPath);
-      notifyListeners();
       _logger.fine("Uploading data to $firebasePath of type $contentType.");
       _imagesInMemory[firebasePath.toLocalPlatformSeparators()] = data;
       notifyListeners();
 
       final metadata = SettableMetadata(contentType: contentType);
 
-      await _storage.ref(unixPath).putData(data, metadata);
+      await _storage
+          .ref(firebasePath.toUnixStyleSeparators())
+          .putData(data, metadata);
     } catch (ex) {
       _logger.severe("Failed to upload data to $firebasePath.", ex);
-    } finally {
-      _uploadingFiles.remove(unixPath);
-      notifyListeners();
     }
   }
 
