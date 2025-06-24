@@ -194,10 +194,8 @@ class ImageManager extends ChangeNotifier {
       notifyListeners();
 
       final metadata = SettableMetadata(contentType: contentType);
-
-      await _storage
-          .ref(firebasePath.toUnixStyleSeparators())
-          .putData(data, metadata);
+      final ref = _storage.ref(firebasePath.toUnixStyleSeparators());
+      await ref.putData(data, metadata);
     } catch (ex) {
       _logger.severe("Failed to upload data to $firebasePath.", ex);
     }

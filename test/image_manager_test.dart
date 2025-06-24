@@ -9,6 +9,7 @@ import 'mock_directory.dart';
 import 'mock_file.dart';
 import 'mock_file_factory.dart';
 import 'mock_firebase_storage.dart';
+import 'mock_task_snapshot.dart';
 import 'mock_upload_task.dart';
 
 void main() {
@@ -17,6 +18,7 @@ void main() {
   late MockDirectory directory;
   late MockFileFactory fileFactory;
   late MockFile file;
+  late MockTaskSnapshot snapshot;
   late MockUploadTask uploadTask;
 
   final data = Uint8List(16);
@@ -27,21 +29,27 @@ void main() {
     directory = MockDirectory();
     file = MockFile();
     fileFactory = MockFileFactory(file: file);
-    uploadTask = MockUploadTask();
+    snapshot = MockTaskSnapshot();
+    uploadTask = MockUploadTask(snapshot: snapshot);
 
     registerFallbackValue(data);
 
     when(() => directory.path).thenReturn("directory");
     when(() => reference.getData()).thenAnswer((_) async => data);
     when(() => reference.delete()).thenAnswer((_) async {});
-    when(() => reference.putFile(file)).thenAnswer((_) => uploadTask);
+    when(() => reference.putFile(file)).thenAnswer((_) {
+      return uploadTask;
+    });
     when(
-      () =>
-          reference.putData(data, SettableMetadata(contentType: "image/jpeg")),
-    ).thenAnswer((_) => uploadTask);
+      () => reference.putData(data, any(that: isA<SettableMetadata>())),
+    ).thenAnswer((_) {
+      return uploadTask;
+    });
     when(
-      () => reference.putData(data, SettableMetadata(contentType: "image/png")),
-    ).thenAnswer((_) => uploadTask);
+      () => reference.putData(data, any(that: isA<SettableMetadata>())),
+    ).thenAnswer((_) {
+      return uploadTask;
+    });
     when(() => file.delete()).thenAnswer((_) async => file);
 
     when(
