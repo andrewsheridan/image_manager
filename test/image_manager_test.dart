@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_manager/image_manager.dart';
 import 'package:image_manager/string_extensions.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:path/path.dart';
 
 import 'mock_directory.dart';
 import 'mock_file.dart';
@@ -28,13 +29,15 @@ void main() {
     reference = MockReference();
     directory = MockDirectory();
     file = MockFile();
-    fileFactory = MockFileFactory(file: file);
+    fileFactory = MockFileFactory();
     snapshot = MockTaskSnapshot();
     uploadTask = MockUploadTask(snapshot: snapshot);
 
     registerFallbackValue(data);
 
-    when(() => directory.path).thenReturn("directory");
+    when(
+      () => directory.path,
+    ).thenReturn("~/documents".toLocalPlatformSeparators());
     when(() => reference.getData()).thenAnswer((_) async => data);
     when(() => reference.delete()).thenAnswer((_) async {});
     when(() => reference.putFile(file)).thenAnswer((_) {
@@ -65,12 +68,16 @@ void main() {
     fileFactory: fileFactory,
   );
 
-  void setupFileExists(bool exists) {
+  String setupFilePath(String filePathRelativeToDirectory, bool exists) {
+    final fullPath = join(
+      directory.path,
+      filePathRelativeToDirectory.toLocalPlatformSeparators(),
+    );
+    when(() => fileFactory.fromPath(fullPath)).thenReturn(file);
+    when(() => file.path).thenReturn(fullPath);
     when(() => file.exists()).thenAnswer((_) async => exists);
-  }
 
-  void setupFilePath(String path) {
-    when(() => file.path).thenReturn(path);
+    return fullPath;
   }
 
   void setupRefPath(String path) {
@@ -79,24 +86,21 @@ void main() {
 
   group("Testing different platform separators.", () {
     for (final fileName in [
-      "something.png",
-      "directory/filename.jpeg",
-      "directory\\filename.png",
+      "filename.png",
+      "sessions/123456/filename.jpeg",
+      "sessions\\123456\\filename.png",
     ]) {
-      final platformPath = fileName.toLocalPlatformSeparators();
       final unixPath = fileName.toUnixStyleSeparators();
 
       test(
         "$fileName Given the local file is not yet in cache, when getLocalSync called, then null will be returned and the retrieval process will be initiated.",
         () async {
-          setupFilePath(platformPath);
-          setupFileExists(true);
+          setupFilePath(fileName, true);
+
           var notifies = 0;
 
           final cache = build();
           cache.addListener(() => notifies++);
-
-          final fileName = "something.png";
 
           expect(
             cache.getLocalSync(fileName: fileName, retrieveIfMissing: true),
@@ -125,9 +129,8 @@ void main() {
       test(
         "$fileName Given the firebase file is not yet in cache, and not in local stoage, when getFirebaseSync is called, then null will be returned and the retrieval process will be initiated.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, false);
           setupRefPath(unixPath);
-          setupFileExists(false);
 
           var notifies = 0;
 
@@ -180,17 +183,13 @@ void main() {
       test(
         "$fileName Given the firebase file is in local storage but not memory, when getFirebaseSync is called, then null will be returned and the file will be retrivied from storage.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, true);
           setupRefPath(unixPath);
 
           var notifies = 0;
 
           final cache = build();
           cache.addListener(() => notifies++);
-
-          setupFileExists(true);
-
-          final fileName = "sessions/abcdef/something.png";
 
           expect(
             cache.getFirebaseSync(
@@ -238,13 +237,11 @@ void main() {
       test(
         "$fileName Given the local file is not yet in cache, when getLocalAsync called, then the file will be retrieved, cached and returned.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, true);
           var notifies = 0;
 
           final cache = build();
           cache.addListener(() => notifies++);
-
-          setupFileExists(true);
 
           var result = await cache.getLocalAsync(fileName);
 
@@ -263,14 +260,12 @@ void main() {
       test(
         "$fileName Given the firebase file is not yet in cache, and not in local stoage, when getFirebaseSync is called, then the value will be retrieved, cached, and stored locally.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, false);
           setupRefPath(unixPath);
           var notifies = 0;
 
           final cache = build();
           cache.addListener(() => notifies++);
-
-          setupFileExists(false);
 
           var result = await cache.getFirebaseAsync(fileName);
 
@@ -298,14 +293,12 @@ void main() {
       test(
         "$fileName Given the firebase file is in local storage but not memory, when getFirebaseAsync is called, then the file will be retrieved and cached from storage.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, true);
           setupRefPath(unixPath);
           var notifies = 0;
 
           final cache = build();
           cache.addListener(() => notifies++);
-
-          setupFileExists(true);
 
           var result = await cache.getFirebaseAsync(fileName);
 
@@ -331,15 +324,13 @@ void main() {
       );
 
       test(
-        "Given a file exists locally and is in memory, when removeLocalFileCalled, both local and cache instance removed.",
+        "$fileName - Given a file exists locally and is in memory, when removeLocalFileCalled, both local and cache instance removed.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, true);
           var notifies = 0;
 
           final cache = build();
           cache.addListener(() => notifies++);
-
-          setupFileExists(true);
 
           var result = await cache.getLocalAsync(fileName);
 
@@ -357,14 +348,12 @@ void main() {
       test(
         "$fileName Path Given a file exists locally and is in memory, when removeLocalFileCalled, both local and cache instance removed.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, false);
           setupRefPath(unixPath);
           var notifies = 0;
 
           final cache = build();
           cache.addListener(() => notifies++);
-
-          setupFileExists(false);
 
           var result = await cache.getFirebaseAsync(fileName);
 
@@ -376,7 +365,7 @@ void main() {
           verify(() => reference.getData());
           verifyNever(() => file.readAsBytes());
 
-          setupFileExists(true);
+          setupFilePath(fileName, true);
 
           await cache.removeFirebaseFile(fileName);
 
@@ -389,9 +378,8 @@ void main() {
       test(
         "$fileName - Uploading a file will stick that file in cache and in firebase.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, true);
           setupRefPath(unixPath);
-          setupFileExists(true);
 
           var notifies = 0;
 
@@ -415,9 +403,8 @@ void main() {
       test(
         "$fileName - Uploading data will stick that file in cache and in firebase.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, true);
           setupRefPath(unixPath);
-          setupFileExists(true);
 
           var notifies = 0;
 
@@ -454,9 +441,8 @@ void main() {
       test(
         "$fileName - Uploading image will stick that file in cache and in firebase.",
         () async {
-          setupFilePath(platformPath);
+          setupFilePath(fileName, true);
           setupRefPath(unixPath);
-          setupFileExists(true);
 
           var notifies = 0;
 

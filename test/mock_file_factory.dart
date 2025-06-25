@@ -1,16 +1,19 @@
 import 'dart:io';
 
 import 'package:image_manager/file_factory.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'mock_file.dart';
 
-class MockFileFactory implements FileFactory {
+class StubbedFileFactory implements FileFactory {
   final MockFile file;
 
-  MockFileFactory({required this.file});
+  StubbedFileFactory({required this.file});
 
   @override
   File fromPath(String path) {
     return file;
   }
 }
+
+class MockFileFactory extends Mock implements FileFactory {}

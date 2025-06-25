@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image/image.dart';
 import 'package:image_manager/string_extensions.dart';
@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart';
 
+import 'compression_format.dart';
 import 'file_factory.dart';
 import 'pick_and_copy_image_result.dart';
 
@@ -19,6 +20,7 @@ class ImageManager extends ChangeNotifier {
   final FirebaseStorage _storage;
   final Directory? _directory;
   final FileFactory _fileFactory;
+
   final Logger _logger = Logger("ImageManager");
 
   /// The key for this will always be whatever format for the local filesystem is.
@@ -33,16 +35,18 @@ class ImageManager extends ChangeNotifier {
        _directory = directory,
        _fileFactory = fileFactory;
 
-  String getFullFilePath(String fileName) =>
-      _directory == null ? fileName : join(_directory.path, basename(fileName));
+  String getFullLocalFilePath(String fileName) => _directory == null
+      ? fileName
+      : join(_directory.path, fileName).toLocalPlatformSeparators();
 
   Uint8List? getLocalSync({
     required String fileName,
     required bool retrieveIfMissing,
   }) {
-    final output = _imagesInMemory[fileName.toLocalPlatformSeparators()];
+    final localFileName = fileName.toLocalPlatformSeparators();
+    final output = _imagesInMemory[localFileName];
     if (output == null && retrieveIfMissing) {
-      getLocalAsync(fileName);
+      getLocalAsync(localFileName);
     }
     return output;
   }
@@ -61,12 +65,6 @@ class ImageManager extends ChangeNotifier {
   Future<Uint8List?> getLocalAsync(String fileName) async {
     _logger.finest("getLocalAsync $fileName");
     final localPath = fileName.toLocalPlatformSeparators();
-    if (_retrievingFiles.contains(localPath)) {
-      _logger.fine(
-        "Retrieval already initiated for image $localPath. Returning.",
-      );
-      return null;
-    }
 
     Uint8List? bytes;
 
@@ -78,11 +76,18 @@ class ImageManager extends ChangeNotifier {
         return _imagesInMemory[localPath]!;
       }
 
+      if (_retrievingFiles.contains(localPath)) {
+        _logger.fine(
+          "Retrieval already initiated for image $localPath. Returning.",
+        );
+        return null;
+      }
+
       _retrievingFiles.add(localPath);
 
       // Future work: If web, cache locally somehow.
       if (!kIsWeb) {
-        final localStoragePath = localPath.toLocalPlatformSeparators();
+        final localStoragePath = getFullLocalFilePath(localPath);
         final localStorageFile = _fileFactory.fromPath(localStoragePath);
 
         if (await localStorageFile.exists()) {
@@ -148,9 +153,14 @@ class ImageManager extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final file = _fileFactory.fromPath(fileName.toLocalPlatformSeparators());
+      final file = _fileFactory.fromPath(getFullLocalFilePath(fileName));
+
       if (await file.exists()) {
         await file.delete();
+      } else {
+        _logger.warning(
+          "Attepting to clear local file, but file was not found at ${file.path}",
+        );
       }
     } catch (ex) {
       _logger.severe("Failed to delete local file $fileName", ex);
@@ -292,7 +302,7 @@ class ImageManager extends ChangeNotifier {
     int? minWidth,
     double? sizeRatio,
     required int quality,
-    required CompressFormat format,
+    required CompressionFormat format,
   }) async {
     Future<Size?> computeSize() async {
       if (sizeRatio != null) {
@@ -309,10 +319,10 @@ class ImageManager extends ChangeNotifier {
 
     final result = await FlutterImageCompress.compressWithList(
       image,
-      minHeight: size?.height.floor() ?? 128,
-      minWidth: size?.width.floor() ?? 128,
+      minHeight: size?.height.floor() ?? minHeight ?? 128,
+      minWidth: size?.width.floor() ?? minWidth ?? 128,
       quality: quality,
-      format: format,
+      format: format.format,
     );
 
     final beforeLength = image.length;
