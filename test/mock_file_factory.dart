@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:image_manager/file_factory.dart';
+import 'package:image_manager/src/file_factory.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'mock_file.dart';

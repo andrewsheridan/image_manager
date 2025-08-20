@@ -1,8 +1,8 @@
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image_manager/image_manager.dart';
-import 'package:image_manager/string_extensions.dart';
+import 'package:image_manager/src/image_manager.dart';
+import 'package:image_manager/src/string_extensions.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart';
 

@@ -5,7 +5,7 @@ import 'package:cubit_pool/hybrid_pool.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:image_manager/compression_format.dart';
+import 'package:image_manager/src/compression_format.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
