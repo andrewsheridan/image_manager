@@ -2,12 +2,12 @@ import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 
-class PickAndCopyImageResult extends Equatable {
+class ImageResult extends Equatable {
   final String fileName;
   final String imagePath;
   final Uint8List bytes;
 
-  const PickAndCopyImageResult({
+  const ImageResult({
     required this.fileName,
     required this.imagePath,
     required this.bytes,

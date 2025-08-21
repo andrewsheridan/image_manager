@@ -1,20 +1,16 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:cubit_pool/hybrid_pool.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_manager/src/compression_format.dart';
+import 'package:image_manager/src/compression_settings.dart';
 import 'package:logging/logging.dart';
-import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
 
 import 'image_manager.dart' as im;
 
 abstract class PoolImageManager<T> extends ChangeNotifier {
-  final Directory? _directory;
-
   @protected
   final FirebaseAuth auth;
   @protected
@@ -26,11 +22,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
   @protected
   final Logger logger = Logger("AbstractImageManager<$T>");
 
-  final int compressedImageQuality;
-  final int? imageMinHeight;
-  final int? imageMinWidth;
-  final double? imageSizeRatio;
-  final CompressFormat imageFormat;
+  final CompressionSettings compressionSettings;
 
   late final StreamSubscription _itemUpdatedSubscription;
   late final StreamSubscription _itemDeletedSubscription;
@@ -40,15 +32,9 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
     required this.imageManager,
     required this.hybridPool,
     required FirebaseAuth firebaseAuth,
-    required Directory? directory,
-    required this.compressedImageQuality,
-    this.imageMinHeight,
-    this.imageMinWidth,
+    required this.compressionSettings,
     required this.uuid,
-    this.imageSizeRatio,
-    required this.imageFormat,
-  }) : auth = firebaseAuth,
-       _directory = directory {
+  }) : auth = firebaseAuth {
     _itemUpdatedSubscription = hybridPool.itemUpdatedStream.listen(
       _onItemUpdated,
     );
@@ -120,22 +106,12 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
   Future<void> uploadImage(String fileName, String firebasePath) async {
     try {
       logger.fine("Uploading image $fileName to $firebasePath");
-      if (kIsWeb) {
-        final bytes = await imageManager.getLocalAsync(fileName);
 
-        if (bytes == null) throw ("Image bytes not found for web upload.");
+      final bytes = await imageManager.getLocalAsync(fileName);
 
-        return uploadImageBytes(bytes, firebasePath);
-      } else {
-        if (_directory == null) {
-          throw ("Directory not provided, cannot retrieve file.");
-        }
-        final file = File(join(_directory.path, fileName));
+      if (bytes == null) throw ("Image bytes not found for upload.");
 
-        final bytes = await file.readAsBytes();
-
-        return uploadImageBytes(bytes, firebasePath);
-      }
+      return uploadImageBytes(bytes, firebasePath);
     } catch (ex) {
       logger.severe("Failed to upload image $fileName to $firebasePath.", ex);
     }
@@ -156,11 +132,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
   }) {
     return imageManager.compressImage(
       image: bytes,
-      quality: compressedImageQuality,
-      minHeight: imageMinHeight,
-      minWidth: imageMinWidth,
-      sizeRatio: this.imageSizeRatio,
-      format: format,
+      settings: compressionSettings,
     );
   }
 }

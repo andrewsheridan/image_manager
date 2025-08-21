@@ -1,43 +1,51 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:image/image.dart';
+import 'package:image_manager/src/image_result.dart';
 import 'package:image_manager/src/string_extensions.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart';
 
-import 'compression_format.dart';
+import 'compression_settings.dart';
 import 'file_factory.dart';
-import 'pick_and_copy_image_result.dart';
 
 class ImageManager extends ChangeNotifier {
   final FirebaseStorage _storage;
   final Directory? _directory;
   final FileFactory _fileFactory;
+  final Box? _box;
 
   final Logger _logger = Logger("ImageManager");
 
   /// The key for this will always be whatever format for the local filesystem is.
   final Map<String, Uint8List> _imagesInMemory = {};
   final Set<String> _retrievingFiles = {};
+  final Map<String, int> _failedToRetrieveFiles = {};
 
   ImageManager({
     required FirebaseStorage storage,
     required Directory? directory,
     required FileFactory fileFactory,
+    Box? imageCacheBox,
   }) : _storage = storage,
        _directory = directory,
-       _fileFactory = fileFactory;
+       _fileFactory = fileFactory,
+       _box = imageCacheBox;
 
   String getFullLocalFilePath(String fileName) => _directory == null
       ? fileName
       : join(_directory.path, fileName).toLocalPlatformSeparators();
+
+  void _markFailed(String path) {
+    _failedToRetrieveFiles[path] = (_failedToRetrieveFiles[path] ?? 0) + 1;
+  }
 
   Uint8List? getLocalSync({
     required String fileName,
@@ -85,8 +93,18 @@ class ImageManager extends ChangeNotifier {
 
       _retrievingFiles.add(localPath);
 
-      // Future work: If web, cache locally somehow.
-      if (!kIsWeb) {
+      if (kIsWeb) {
+        final bytes = _box!.get(fileName);
+        if (bytes is Uint8List) {
+          _imagesInMemory[localPath] = bytes;
+          notifyListeners();
+        } else {
+          _markFailed(localPath);
+          _logger.warning(
+            "Retreived cache data at $fileName was not the correct format.",
+          );
+        }
+      } else {
         final localStoragePath = getFullLocalFilePath(localPath);
         final localStorageFile = _fileFactory.fromPath(localStoragePath);
 
@@ -98,6 +116,7 @@ class ImageManager extends ChangeNotifier {
         }
       }
     } catch (ex) {
+      _markFailed(localPath);
       _logger.severe(
         "Failed to retrieve image $localPath from local storage.",
         ex,
@@ -117,6 +136,11 @@ class ImageManager extends ChangeNotifier {
     final localPath = firebasePath.toLocalPlatformSeparators();
     final unixStylePath = firebasePath.toUnixStyleSeparators();
 
+    if ((_failedToRetrieveFiles[localPath] ?? 0) > 3) {
+      _logger.warning(("Max retries hit for $localPath, not retrieving."));
+      return null;
+    }
+
     Uint8List? data;
 
     try {
@@ -134,12 +158,13 @@ class ImageManager extends ChangeNotifier {
       notifyListeners();
 
       if (!kIsWeb) {
-        await importImage(data, fileName: localPath);
+        await saveImage(data, fileName: localPath);
       }
 
       _logger.fine("Image for $firebasePath retrieved from database.");
     } catch (ex) {
       _logger.severe("Failed to import image $firebasePath from Firebase.", ex);
+      _markFailed(localPath);
     } finally {
       _retrievingFiles.remove(unixStylePath);
     }
@@ -153,14 +178,18 @@ class ImageManager extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final file = _fileFactory.fromPath(getFullLocalFilePath(fileName));
-
-      if (await file.exists()) {
-        await file.delete();
+      if (kIsWeb) {
+        await _box!.delete(fileName);
       } else {
-        _logger.warning(
-          "Attepting to clear local file, but file was not found at ${file.path}",
-        );
+        final file = _fileFactory.fromPath(getFullLocalFilePath(fileName));
+
+        if (await file.exists()) {
+          await file.delete();
+        } else {
+          _logger.warning(
+            "Attepting to clear local file, but file was not found at ${file.path}",
+          );
+        }
       }
     } catch (ex) {
       _logger.severe("Failed to delete local file $fileName", ex);
@@ -236,19 +265,34 @@ class ImageManager extends ChangeNotifier {
     return pickedFile.readAsBytes();
   }
 
-  Future<PickAndCopyImageResult?> pickAndCopyImage({
+  Future<ImageResult?> pickAndCopyImage({
     String? fileNameOverride,
-    String? Function(User? user, String filePath)? firebasePathCallback,
+    CompressionSettings? compressionSettings,
   }) async {
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
       if (pickedFile == null) return null;
+      _logger.finer("pickAndCopyImage() - Image picked.");
 
-      final bytes = await pickedFile.readAsBytes();
+      Uint8List bytes = await pickedFile.readAsBytes();
+      _logger.finer("pickAndCopyImage() - Image bytes successfully loaded.");
+      if (compressionSettings != null) {
+        final before = bytes.lengthInBytes;
+        bytes = await compressImage(
+          image: bytes,
+          settings: compressionSettings,
+        );
+        _logger.finer(
+          "pickAndCopyImage() - Image compressed from $before to ${bytes.lengthInBytes}.",
+        );
+      }
 
-      if (kIsWeb || _directory == null) {
-        return PickAndCopyImageResult(
+      if (kIsWeb) {
+        await _box!.put(basename(pickedFile.path), bytes);
+        _logger.finer("pickAndCopyImage() - Put image in box.");
+
+        return ImageResult(
           fileName: basename(pickedFile.path),
           imagePath: pickedFile.path,
           bytes: bytes,
@@ -260,51 +304,57 @@ class ImageManager extends ChangeNotifier {
           ? basename(pickedFile.path)
           : "$fileNameOverride${extension(pickedFile.path)}";
 
-      final originalFile = File(pickedFile.path);
-      final destinationPath = join(directory.path, fileName);
+      final destinationPath = join(directory!.path, fileName);
       final destinationFile = File(destinationPath);
       if (await destinationFile.exists()) {
         await destinationFile.delete();
       }
-      final copiedImage = await originalFile.copy(destinationPath);
-      final copiedImagePath = copiedImage.path;
+      await destinationFile.create(recursive: true);
+      await destinationFile.writeAsBytes(bytes);
 
-      return PickAndCopyImageResult(
+      return ImageResult(
         fileName: fileName,
-        imagePath: copiedImagePath,
+        imagePath: destinationPath,
         bytes: bytes,
       );
     } catch (ex) {
       _logger.severe("Failed to pick and copy image.", ex);
+      rethrow;
     }
-
-    return null;
   }
 
-  Future<File> importImage(Uint8List imageData, {String? fileName}) async {
-    if (_directory == null) {
-      throw ("Directory was null when attempting to import image.");
-    }
-
+  Future<ImageResult> saveImage(Uint8List imageData, {String? fileName}) async {
     fileName ??= "${DateTime.now().millisecondsSinceEpoch}.png";
-    String path = join(_directory.path, fileName).toLocalPlatformSeparators();
-    final imageFile = _fileFactory.fromPath(path);
 
-    await imageFile.create(recursive: true);
-    await imageFile.writeAsBytes(imageData);
-    return imageFile;
+    if (kIsWeb) {
+      await _box!.put(fileName, imageData);
+
+      return ImageResult(
+        fileName: fileName,
+        imagePath: fileName,
+        bytes: imageData,
+      );
+    } else {
+      if (_directory == null) {
+        throw ("Directory was null when attempting to import image.");
+      }
+      String path = join(_directory.path, fileName).toLocalPlatformSeparators();
+      final imageFile = _fileFactory.fromPath(path);
+
+      await imageFile.create(recursive: true);
+      await imageFile.writeAsBytes(imageData);
+
+      return ImageResult(fileName: fileName, imagePath: path, bytes: imageData);
+    }
   }
 
   /// Throws String
   Future<Uint8List> compressImage({
     required Uint8List image,
-    int? minHeight,
-    int? minWidth,
-    double? sizeRatio,
-    required int quality,
-    required CompressionFormat format,
+    required CompressionSettings settings,
   }) async {
     Future<Size?> computeSize() async {
+      final sizeRatio = settings.sizeRatio;
       if (sizeRatio != null) {
         final decoded = decodeImage(image);
         if (decoded == null) {
@@ -319,10 +369,10 @@ class ImageManager extends ChangeNotifier {
 
     final result = await FlutterImageCompress.compressWithList(
       image,
-      minHeight: size?.height.floor() ?? minHeight ?? 128,
-      minWidth: size?.width.floor() ?? minWidth ?? 128,
-      quality: quality,
-      format: format.format,
+      minHeight: size?.height.floor() ?? settings.minHeight ?? 128,
+      minWidth: size?.width.floor() ?? settings.minWidth ?? 128,
+      quality: settings.quality,
+      format: settings.format.format,
     );
 
     final beforeLength = image.length;
