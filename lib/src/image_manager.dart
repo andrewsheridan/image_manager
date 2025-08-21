@@ -94,12 +94,14 @@ class ImageManager extends ChangeNotifier {
       _retrievingFiles.add(localPath);
 
       if (kIsWeb) {
-        final bytes = _box!.get(fileName);
-        if (bytes is Uint8List) {
-          _imagesInMemory[localPath] = bytes;
+        final boxBytes = _box!.get(localPath);
+        if (boxBytes is Uint8List) {
+          _logger.fine("Successfully loaded $fileName from image cache box.");
+          _imagesInMemory[localPath] = boxBytes;
+          bytes = boxBytes;
           notifyListeners();
+        } else if (boxBytes == null) {
         } else {
-          _markFailed(localPath);
           _logger.warning(
             "Retreived cache data at $fileName was not the correct format.",
           );
@@ -157,9 +159,7 @@ class ImageManager extends ChangeNotifier {
       _imagesInMemory[localPath] = data;
       notifyListeners();
 
-      if (!kIsWeb) {
-        await saveImage(data, fileName: localPath);
-      }
+      await saveImage(data, fileName: localPath);
 
       _logger.fine("Image for $firebasePath retrieved from database.");
     } catch (ex) {
@@ -174,12 +174,13 @@ class ImageManager extends ChangeNotifier {
 
   Future<void> removeLocalFile(String fileName) async {
     _logger.info("Deleting locally stored file at $fileName");
-    _imagesInMemory.remove(fileName.toLocalPlatformSeparators());
+    final localPath = fileName.toLocalPlatformSeparators();
+    _imagesInMemory.remove(localPath);
     notifyListeners();
 
     try {
       if (kIsWeb) {
-        await _box!.delete(fileName);
+        await _box!.delete(localPath);
       } else {
         final file = _fileFactory.fromPath(getFullLocalFilePath(fileName));
 
@@ -278,14 +279,11 @@ class ImageManager extends ChangeNotifier {
       Uint8List bytes = await pickedFile.readAsBytes();
       _logger.finer("pickAndCopyImage() - Image bytes successfully loaded.");
       if (compressionSettings != null) {
-        final before = bytes.lengthInBytes;
         bytes = await compressImage(
           image: bytes,
           settings: compressionSettings,
         );
-        _logger.finer(
-          "pickAndCopyImage() - Image compressed from $before to ${bytes.lengthInBytes}.",
-        );
+        _logger.finer("pickAndCopyImage() - Image compressed.");
       }
 
       if (kIsWeb) {
@@ -328,6 +326,8 @@ class ImageManager extends ChangeNotifier {
 
     if (kIsWeb) {
       await _box!.put(fileName, imageData);
+
+      _logger.fine("Successfully put $fileName in image cache box.");
 
       return ImageResult(
         fileName: fileName,

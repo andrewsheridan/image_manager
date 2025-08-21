@@ -20,13 +20,15 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
   @protected
   final Uuid uuid;
   @protected
-  final Logger logger = Logger("AbstractImageManager<$T>");
+  final Logger logger = Logger("PoolImageManager<$T>");
 
   final CompressionSettings compressionSettings;
 
   late final StreamSubscription _itemUpdatedSubscription;
   late final StreamSubscription _itemDeletedSubscription;
   late final StreamSubscription _authSubscription;
+
+  User? _user;
 
   PoolImageManager({
     required this.imageManager,
@@ -43,6 +45,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
     );
     _authSubscription = auth.userChanges().listen(handleUserChanged);
     imageManager.addListener(_handleCacheChanged);
+    _user = auth.currentUser;
   }
 
   void _handleCacheChanged() {
@@ -88,10 +91,14 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
 
   @protected
   Future<void> handleUserChanged(User? user) async {
+    if (user?.uid == _user?.uid) return;
+
     if (user == null) {
+      _user = user;
       notifyListeners();
       return;
     }
+
     logger.info(
       "Uploading images for type $T user ${user.displayName} ${user.uid}.",
     );
@@ -100,6 +107,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
       await uploadImagesForItem(item, null, user);
     }
 
+    _user = user;
     notifyListeners();
   }
 
