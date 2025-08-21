@@ -24,6 +24,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
 
   final CompressionSettings compressionSettings;
 
+  late final StreamSubscription _itemAddedSubscription;
   late final StreamSubscription _itemUpdatedSubscription;
   late final StreamSubscription _itemDeletedSubscription;
   late final StreamSubscription _authSubscription;
@@ -37,6 +38,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
     required this.compressionSettings,
     required this.uuid,
   }) : auth = firebaseAuth {
+    _itemAddedSubscription = hybridPool.itemAddedStream.listen(_onItemAdded);
     _itemUpdatedSubscription = hybridPool.itemUpdatedStream.listen(
       _onItemUpdated,
     );
@@ -54,11 +56,22 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
 
   @override
   void dispose() {
+    _itemAddedSubscription.cancel();
     _itemUpdatedSubscription.cancel();
     _itemDeletedSubscription.cancel();
     _authSubscription.cancel();
     imageManager.removeListener(_handleCacheChanged);
     super.dispose();
+  }
+
+  Future<void> _onItemAdded(T item) async {
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    // Not doing this anymore because web requires me to have the bytes on hand for upserting.
+    // Just having the file name will not work.
+    // await uploadImagesForItem(after, before, user);
+    await onItemChanged(item, null, user);
   }
 
   Future<void> _onItemUpdated(ItemUpdatedEvent<T> event) async {
@@ -67,9 +80,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
 
     final before = event.before;
     final after = event.after;
-    // Not doing this anymore because web requires me to have the bytes on hand for upserting.
-    // Just having the file name will not work.
-    // await uploadImagesForItem(after, before, user);
+
     await onItemChanged(after, before, user);
   }
 
@@ -87,7 +98,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
   Future<void> removeImagesForItem(T item, User user);
 
   @protected
-  Future<void> onItemChanged(T newItem, T oldItem, User user);
+  Future<void> onItemChanged(T newItem, T? oldItem, User user);
 
   @protected
   Future<void> handleUserChanged(User? user) async {
