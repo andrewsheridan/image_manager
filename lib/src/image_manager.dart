@@ -78,21 +78,21 @@ class ImageManager extends ChangeNotifier {
 
     Uint8List? bytes;
 
+    _logger.fine("Retrieving image at $localPath.");
+
+    if (_imagesInMemory[localPath] != null) {
+      _logger.fine("Using cached version of image $localPath.");
+      return _imagesInMemory[localPath]!;
+    }
+
+    if (_retrievingFiles.contains(localPath)) {
+      _logger.fine(
+        "Retrieval already initiated for image $localPath. Returning.",
+      );
+      throw RetrievalAlreadyInitiatedException();
+    }
+
     try {
-      _logger.fine("Retrieving image at $localPath.");
-
-      if (_imagesInMemory[localPath] != null) {
-        _logger.fine("Using cached version of image $localPath.");
-        return _imagesInMemory[localPath]!;
-      }
-
-      if (_retrievingFiles.contains(localPath)) {
-        _logger.fine(
-          "Retrieval already initiated for image $localPath. Returning.",
-        );
-        throw RetrievalAlreadyInitiatedException();
-      }
-
       _retrievingFiles.add(localPath);
 
       if (kIsWeb) {
