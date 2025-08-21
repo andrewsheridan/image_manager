@@ -8,6 +8,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:image/image.dart';
+import 'package:image_manager/src/image_manager_exceptions.dart';
 import 'package:image_manager/src/image_result.dart';
 import 'package:image_manager/src/string_extensions.dart';
 import 'package:image_picker/image_picker.dart';
@@ -89,7 +90,7 @@ class ImageManager extends ChangeNotifier {
         _logger.fine(
           "Retrieval already initiated for image $localPath. Returning.",
         );
-        return null;
+        throw RetrievalAlreadyInitiatedException();
       }
 
       _retrievingFiles.add(localPath);
@@ -136,9 +137,13 @@ class ImageManager extends ChangeNotifier {
   }
 
   Future<Uint8List?> getFirebaseAsync(String firebasePath) async {
-    final localCopy = await getLocalAsync(firebasePath);
+    try {
+      final localCopy = await getLocalAsync(firebasePath);
 
-    if (localCopy != null) return localCopy;
+      if (localCopy != null) return localCopy;
+    } on RetrievalAlreadyInitiatedException catch (_) {
+      return null;
+    }
 
     final localPath = firebasePath.toLocalPlatformSeparators();
     final unixStylePath = firebasePath.toUnixStyleSeparators();
