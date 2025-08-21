@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:image/image.dart';
@@ -99,7 +100,9 @@ class ImageManager extends ChangeNotifier {
           _logger.fine("Successfully loaded $fileName from image cache box.");
           _imagesInMemory[localPath] = boxBytes;
           bytes = boxBytes;
-          notifyListeners();
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            notifyListeners();
+          });
         } else if (boxBytes == null) {
         } else {
           _logger.warning(
@@ -114,7 +117,9 @@ class ImageManager extends ChangeNotifier {
           _logger.fine("Image for $localPath found locally.");
           bytes = await localStorageFile.readAsBytes();
           _imagesInMemory[localPath] = bytes;
-          notifyListeners();
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            notifyListeners();
+          });
         }
       }
     } catch (ex) {
@@ -157,7 +162,9 @@ class ImageManager extends ChangeNotifier {
       }
 
       _imagesInMemory[localPath] = data;
-      notifyListeners();
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
 
       await saveImage(data, fileName: localPath);
 
