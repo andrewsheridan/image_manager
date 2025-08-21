@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:image/image.dart';
@@ -49,6 +48,16 @@ class ImageManager extends ChangeNotifier {
     _failedToRetrieveFiles[path] = (_failedToRetrieveFiles[path] ?? 0) + 1;
   }
 
+  void _notify(bool fromSync) {
+    // if (fromSync) {
+    //   SchedulerBinding.instance.addPostFrameCallback((_) {
+    //     notifyListeners();
+    //   });
+    // } else {
+    notifyListeners();
+    // }
+  }
+
   Uint8List? getLocalSync({
     required String fileName,
     required bool retrieveIfMissing,
@@ -56,7 +65,7 @@ class ImageManager extends ChangeNotifier {
     final localFileName = fileName.toLocalPlatformSeparators();
     final output = _imagesInMemory[localFileName];
     if (output == null && retrieveIfMissing) {
-      getLocalAsync(localFileName);
+      getLocalAsync(localFileName, fromSync: true);
     }
     return output;
   }
@@ -67,12 +76,15 @@ class ImageManager extends ChangeNotifier {
   }) {
     final output = _imagesInMemory[firebasePath.toLocalPlatformSeparators()];
     if (output == null && retrieveIfMissing) {
-      getFirebaseAsync(firebasePath);
+      getFirebaseAsync(firebasePath, fromSync: true);
     }
     return output;
   }
 
-  Future<Uint8List?> getLocalAsync(String fileName) async {
+  Future<Uint8List?> getLocalAsync(
+    String fileName, {
+    bool fromSync = false,
+  }) async {
     _logger.finest("getLocalAsync $fileName");
     final localPath = fileName.toLocalPlatformSeparators();
 
@@ -101,9 +113,7 @@ class ImageManager extends ChangeNotifier {
           _logger.fine("Successfully loaded $fileName from image cache box.");
           _imagesInMemory[localPath] = boxBytes;
           bytes = boxBytes;
-          SchedulerBinding.instance.addPostFrameCallback((_) {
-            notifyListeners();
-          });
+          _notify(fromSync);
         } else if (boxBytes == null) {
         } else {
           _logger.warning(
@@ -118,9 +128,7 @@ class ImageManager extends ChangeNotifier {
           _logger.fine("Image for $localPath found locally.");
           bytes = await localStorageFile.readAsBytes();
           _imagesInMemory[localPath] = bytes;
-          SchedulerBinding.instance.addPostFrameCallback((_) {
-            notifyListeners();
-          });
+          _notify(fromSync);
         }
       }
     } catch (ex) {
@@ -136,7 +144,10 @@ class ImageManager extends ChangeNotifier {
     return bytes;
   }
 
-  Future<Uint8List?> getFirebaseAsync(String firebasePath) async {
+  Future<Uint8List?> getFirebaseAsync(
+    String firebasePath, {
+    bool fromSync = false,
+  }) async {
     try {
       final localCopy = await getLocalAsync(firebasePath);
 
@@ -167,9 +178,8 @@ class ImageManager extends ChangeNotifier {
       }
 
       _imagesInMemory[localPath] = data;
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        notifyListeners();
-      });
+      if (fromSync) {}
+      _notify(fromSync);
 
       await saveImage(data, fileName: localPath);
 
