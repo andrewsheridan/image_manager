@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image_manager/image_manager.dart';
 import 'package:provider/provider.dart';
 
-class BoxImageManagerBoxBuilder extends StatefulWidget {
-  const BoxImageManagerBoxBuilder({
+class BoxImageManagerBuilder extends StatefulWidget {
+  const BoxImageManagerBuilder({
     super.key,
     required this.imagePath,
     required this.builder,
@@ -15,11 +15,10 @@ class BoxImageManagerBoxBuilder extends StatefulWidget {
   final Widget Function(BuildContext context, Uint8List? bytes) builder;
 
   @override
-  State<BoxImageManagerBoxBuilder> createState() =>
-      _BoxImageManagerBoxBuilderState();
+  State<BoxImageManagerBuilder> createState() => _BoxImageManagerBuilderState();
 }
 
-class _BoxImageManagerBoxBuilderState extends State<BoxImageManagerBoxBuilder> {
+class _BoxImageManagerBuilderState extends State<BoxImageManagerBuilder> {
   Uint8List? _image;
   late final BoxImageManager _imageManager;
 
