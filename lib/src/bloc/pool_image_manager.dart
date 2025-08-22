@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:cubit_pool/hybrid_pool.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:image_manager/src/compression_format.dart';
-import 'package:image_manager/src/compression_settings.dart';
+import 'package:image_manager/src/model/compression_format.dart';
+import 'package:image_manager/src/model/compression_settings.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 

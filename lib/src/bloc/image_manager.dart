@@ -7,14 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:image/image.dart';
-import 'package:image_manager/src/image_manager_exceptions.dart';
-import 'package:image_manager/src/image_result.dart';
-import 'package:image_manager/src/string_extensions.dart';
+import 'package:image_manager/src/bloc/string_extensions.dart';
+import 'package:image_manager/src/model/image_manager_exceptions.dart';
+import 'package:image_manager/src/model/image_result.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart';
 
-import 'compression_settings.dart';
+import '../model/compression_settings.dart';
 import 'file_factory.dart';
 
 class ImageManager extends ChangeNotifier {

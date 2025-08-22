@@ -1,4 +1,4 @@
-import 'package:image_manager/src/compression_format.dart';
+import 'package:image_manager/src/model/compression_format.dart';
 
 class CompressionSettings {
   final int? minHeight;
