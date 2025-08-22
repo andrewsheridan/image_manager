@@ -8,13 +8,13 @@ import 'package:image_manager/src/compression_settings.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
-import 'image_manager.dart' as im;
+import 'box_image_manager.dart' as im;
 
 abstract class PoolImageManager<T> extends ChangeNotifier {
   @protected
   final FirebaseAuth auth;
   @protected
-  final im.ImageManager imageManager;
+  final im.BoxImageManager imageManager;
   @protected
   final HybridPool<T> hybridPool;
   @protected
@@ -126,7 +126,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
     try {
       logger.fine("Uploading image $fileName to $firebasePath");
 
-      final bytes = await imageManager.getLocalAsync(fileName);
+      final bytes = await imageManager.getLocalImage(fileName);
 
       if (bytes == null) throw ("Image bytes not found for upload.");
 
@@ -139,7 +139,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
   Future<void> uploadImageBytes(Uint8List bytes, String firebasePath) async {
     try {
       final compressed = await compressImage(bytes);
-      await imageManager.uploadImage(compressed, firebasePath);
+      await imageManager.insertFirebaseImage(compressed, firebasePath);
     } catch (ex) {
       logger.severe("Failed to upload image to $firebasePath.", ex);
     }
