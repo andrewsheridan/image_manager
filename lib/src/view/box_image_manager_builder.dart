@@ -5,11 +5,8 @@ import 'package:image_manager/image_manager.dart';
 import 'package:provider/provider.dart';
 
 class BoxImageManagerBuilder extends StatefulWidget {
-  const BoxImageManagerBuilder({
-    super.key,
-    required this.imagePath,
-    required this.builder,
-  });
+  BoxImageManagerBuilder({required this.imagePath, required this.builder})
+    : super(key: Key("BoxImageManagerBuilder$imagePath"));
 
   final String imagePath;
   final Widget Function(BuildContext context, Uint8List? bytes) builder;
