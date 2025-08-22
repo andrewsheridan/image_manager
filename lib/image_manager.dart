@@ -9,4 +9,5 @@ export 'src/model/compression_settings.dart';
 // export 'src/image_manager.dart';
 export 'src/model/image_result.dart';
 export 'src/model/retrieving_file_info.dart';
+export 'src/view/box_image_manager_box_builder.dart';
 export 'src/view/future_image_builder.dart';
