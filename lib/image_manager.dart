@@ -1,5 +1,6 @@
 library;
 
+export 'src/box_image_manager.dart';
 export 'src/compression_format.dart';
 export 'src/compression_settings.dart';
 export 'src/file_factory.dart';
