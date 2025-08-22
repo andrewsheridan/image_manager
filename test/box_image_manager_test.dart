@@ -100,14 +100,14 @@ void main() {
 
     verify(() => box.put(fileName, data));
 
-    final loaded = await manager.getLocalImage(fileName);
+    final loaded = manager.getLocalImage(fileName);
 
     expect(loaded, data);
     verify(() => box.get(fileName));
 
     await manager.deleteLocalImage(fileName);
 
-    final deleted = await manager.getLocalImage(fileName);
+    final deleted = manager.getLocalImage(fileName);
 
     expect(deleted, null);
     verify(() => box.delete(fileName));

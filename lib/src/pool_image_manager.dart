@@ -126,7 +126,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
     try {
       logger.fine("Uploading image $fileName to $firebasePath");
 
-      final bytes = await imageManager.getLocalImage(fileName);
+      final bytes = imageManager.getLocalImage(fileName);
 
       if (bytes == null) throw ("Image bytes not found for upload.");
 

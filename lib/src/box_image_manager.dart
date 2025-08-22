@@ -40,7 +40,7 @@ class BoxImageManager extends ChangeNotifier {
     _failedToRetrieveFiles[path] = (_failedToRetrieveFiles[path] ?? 0) + 1;
   }
 
-  Future<Uint8List?> getLocalImage(String fileName) async {
+  Uint8List? getLocalImage(String fileName) {
     fileName = fileName.toUnixStyleSeparators();
     _logger.finest("getLocal $fileName");
 
@@ -80,7 +80,7 @@ class BoxImageManager extends ChangeNotifier {
   Future<Uint8List?> getFirebaseImage(String firebasePath) async {
     firebasePath = firebasePath.toUnixStyleSeparators();
 
-    final localCopy = await getLocalImage(firebasePath);
+    final localCopy = getLocalImage(firebasePath);
 
     if (localCopy != null) return localCopy;
 
