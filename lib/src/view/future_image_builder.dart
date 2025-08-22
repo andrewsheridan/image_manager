@@ -9,9 +9,11 @@ class FutureImageBuilder extends StatefulWidget {
     super.key,
     required this.imagePath,
     required this.builder,
+    this.getImage,
   });
 
   final String imagePath;
+  final Future<Uint8List?> Function(String imagePath)? getImage;
   final Widget Function(BuildContext context, Uint8List? bytes) builder;
 
   @override
@@ -32,7 +34,9 @@ class _FutureImageBuilderState extends State<FutureImageBuilder> {
       return;
     }
 
-    _imageManager.getFirebaseImage(widget.imagePath).then((bytes) {
+    (widget.getImage ?? _imageManager.getFirebaseImage)(widget.imagePath).then((
+      bytes,
+    ) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setState(() {
           _image = bytes;
