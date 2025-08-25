@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:image/image.dart';
+import 'package:image_manager/src/bloc/byte_count_formatter.dart';
 import 'package:image_manager/src/bloc/string_extensions.dart';
 import 'package:image_manager/src/model/image_result.dart';
 import 'package:image_picker/image_picker.dart';
@@ -290,10 +291,12 @@ class BoxImageManager extends ChangeNotifier {
       format: settings.format.format,
     );
 
-    final beforeLength = image.length;
-    final afterLength = result.length;
+    final beforeLength = image.lengthInBytes;
+    final afterLength = result.lengthInBytes;
 
-    _logger.finer("Compressed from $beforeLength to $afterLength.");
+    _logger.finer(
+      "Compressed from ${ByteCountFormatter.formatBytes(beforeLength)} to ${ByteCountFormatter.formatBytes(afterLength)}.",
+    );
 
     if (beforeLength < afterLength) return image;
 

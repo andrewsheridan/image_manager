@@ -1,6 +1,7 @@
 library;
 
 export 'src/bloc/box_image_manager.dart';
+export 'src/bloc/byte_count_formatter.dart';
 export 'src/bloc/file_factory.dart';
 export 'src/bloc/pool_image_manager.dart';
 export 'src/bloc/string_extensions.dart';

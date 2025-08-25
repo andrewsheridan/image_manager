@@ -23,7 +23,7 @@ void main() {
 
   final data = Uint8List(16);
 
-  late final Map<dynamic, dynamic> boxData;
+  late Map<dynamic, dynamic> boxData;
 
   late final File testImage;
   late final Uint8List testImageBytes;
@@ -103,7 +103,7 @@ void main() {
     final loaded = manager.getLocalImage(fileName);
 
     expect(loaded, data);
-    verify(() => box.get(fileName));
+    verifyNever(() => box.get(fileName));
 
     await manager.deleteLocalImage(fileName);
 

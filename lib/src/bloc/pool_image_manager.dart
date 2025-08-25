@@ -31,6 +31,9 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
 
   User? _user;
 
+  bool get useFirebase =>
+      auth.currentUser != null && !auth.currentUser!.isAnonymous;
+
   PoolImageManager({
     required this.imageManager,
     required this.hybridPool,
@@ -92,7 +95,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
   }
 
   @protected
-  Future<void> uploadImagesForItem(T item, T? oldItem, User user);
+  Future<void> uploadImagesForItem(T item, User user);
 
   @protected
   Future<void> removeImagesForItem(T item, User user);
@@ -115,33 +118,25 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
     );
 
     for (final item in hybridPool.state.values) {
-      await uploadImagesForItem(item, null, user);
+      await uploadImagesForItem(item, user);
     }
 
     _user = user;
     notifyListeners();
   }
 
-  Future<void> uploadImage(String fileName, String firebasePath) async {
-    try {
-      logger.fine("Uploading image $fileName to $firebasePath");
-
-      final bytes = imageManager.getLocalImage(fileName);
-
-      if (bytes == null) throw ("Image bytes not found for upload.");
-
-      return uploadImageBytes(bytes, firebasePath);
-    } catch (ex) {
-      logger.severe("Failed to upload image $fileName to $firebasePath.", ex);
-    }
-  }
-
-  Future<void> uploadImageBytes(Uint8List bytes, String firebasePath) async {
+  /// Returns the compressed version of the supplied image;
+  Future<Uint8List> uploadImageBytes(
+    Uint8List bytes,
+    String firebasePath,
+  ) async {
     try {
       final compressed = await compressImage(bytes);
       await imageManager.insertFirebaseImage(compressed, firebasePath);
+      return compressed;
     } catch (ex) {
       logger.severe("Failed to upload image to $firebasePath.", ex);
+      rethrow;
     }
   }
 
