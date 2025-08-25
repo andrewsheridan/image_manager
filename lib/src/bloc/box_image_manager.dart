@@ -294,7 +294,7 @@ class BoxImageManager extends ChangeNotifier {
     final beforeLength = image.lengthInBytes;
     final afterLength = result.lengthInBytes;
 
-    _logger.finer(
+    _logger.info(
       "Compressed from ${ByteCountFormatter.formatBytes(beforeLength)} to ${ByteCountFormatter.formatBytes(afterLength)}.",
     );
 
