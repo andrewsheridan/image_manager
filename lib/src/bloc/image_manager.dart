@@ -15,6 +15,7 @@ import 'package:logging/logging.dart';
 import 'package:path/path.dart';
 
 import '../model/compression_settings.dart';
+import 'byte_count_formatter.dart';
 import 'file_factory.dart';
 
 class ImageManager extends ChangeNotifier {
@@ -400,7 +401,9 @@ class ImageManager extends ChangeNotifier {
     final beforeLength = image.length;
     final afterLength = result.length;
 
-    _logger.finer("Compressed from $beforeLength to $afterLength.");
+    _logger.finer(
+      "Compressed from ${ByteCountFormatter.formatBytes(beforeLength)} to ${ByteCountFormatter.formatBytes(afterLength)}.",
+    );
 
     if (beforeLength < afterLength) return image;
 
