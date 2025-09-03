@@ -5,10 +5,15 @@ import 'package:image_manager/image_manager.dart';
 import 'package:provider/provider.dart';
 
 class BoxImageManagerBuilder extends StatefulWidget {
-  BoxImageManagerBuilder({required this.imagePath, required this.builder})
-    : super(key: Key("BoxImageManagerBuilder$imagePath"));
+  const BoxImageManagerBuilder({
+    super.key,
+    required this.imagePath,
+    required this.builder,
+    required this.useFirebase,
+  });
 
   final String imagePath;
+  final bool useFirebase;
   final Widget Function(BuildContext context, Uint8List? bytes) builder;
 
   @override
@@ -29,13 +34,27 @@ class _BoxImageManagerBuilderState extends State<BoxImageManagerBuilder> {
       return;
     }
 
-    _imageManager.getFirebaseImage(widget.imagePath).then((bytes) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!widget.useFirebase) {
+      Future.delayed(Duration(seconds: 1), () {
         setState(() {
-          _image = bytes;
+          final cachedBytes = _imageManager.getLocalImage(widget.imagePath);
+          if (cachedBytes != null) {
+            _image = cachedBytes;
+            return;
+          }
         });
       });
-    });
+    }
+
+    if (widget.useFirebase) {
+      _imageManager.getFirebaseImage(widget.imagePath).then((bytes) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          setState(() {
+            _image = bytes;
+          });
+        });
+      });
+    }
   }
 
   @override
