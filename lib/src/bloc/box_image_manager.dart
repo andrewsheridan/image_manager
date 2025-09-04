@@ -28,23 +28,30 @@ class BoxImageManager extends ChangeNotifier {
   final Map<String, Uint8List> _imagesInMemory = {};
   final Set<String> _retrievingFromFirebase = {};
   final Map<String, int> _failedToRetrieveFiles = {};
+  final bool _notifyImmediately;
 
   BoxImageManager({
     required FirebaseStorage storage,
     required Box imageCacheBox,
     required ImagePicker imagePicker,
+    bool notifyImmediately = false,
   }) : _storage = storage,
        _box = imageCacheBox,
-       _imagePicker = imagePicker;
+       _imagePicker = imagePicker,
+       _notifyImmediately = notifyImmediately;
 
   void _markFailed(String path) {
     _failedToRetrieveFiles[path] = (_failedToRetrieveFiles[path] ?? 0) + 1;
   }
 
   void _notify() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (_notifyImmediately) {
       notifyListeners();
-    });
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
   }
 
   Uint8List? getLocalImage(String filePath) {

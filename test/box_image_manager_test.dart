@@ -84,6 +84,7 @@ void main() {
     storage: storage,
     imageCacheBox: box,
     imagePicker: imagePicker,
+    notifyImmediately: true,
   );
 
   void setupRefPath(String path) {
