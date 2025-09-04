@@ -5,12 +5,11 @@ import 'package:image_manager/image_manager.dart';
 import 'package:provider/provider.dart';
 
 class BoxImageManagerBuilder extends StatefulWidget {
-  const BoxImageManagerBuilder({
-    super.key,
+  BoxImageManagerBuilder({
     required this.imagePath,
     required this.builder,
     required this.useFirebase,
-  });
+  }) : super(key: Key("BoxImageManagerBuilder $imagePath"));
 
   final String imagePath;
   final bool useFirebase;
