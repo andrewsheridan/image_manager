@@ -41,23 +41,29 @@ class BoxImageManager extends ChangeNotifier {
     _failedToRetrieveFiles[path] = (_failedToRetrieveFiles[path] ?? 0) + 1;
   }
 
+  void _notify() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
+  }
+
   Uint8List? getLocalImage(String filePath) {
     final fileName = basename(filePath);
 
     _logger.fine("Retrieving image $fileName at $filePath");
 
     if (_imagesInMemory[fileName] != null) {
-      _logger.fine("Using cached version of image $fileName.");
+      _logger.finer("Using cached version of image $fileName.");
       return _imagesInMemory[fileName]!;
     }
 
     try {
       final boxBytes = _box.get(fileName);
       if (boxBytes is Uint8List) {
-        _logger.fine("Successfully loaded $fileName from image cache box.");
+        _logger.finer("Successfully loaded $fileName from image cache box.");
         _imagesInMemory[fileName] = boxBytes;
 
-        notifyListeners();
+        _notify();
         return boxBytes;
       }
 
@@ -118,7 +124,7 @@ class BoxImageManager extends ChangeNotifier {
     _logger.info("Deleting locally stored file $fileName at $filePath");
 
     _imagesInMemory.remove(fileName);
-    notifyListeners();
+    _notify();
 
     try {
       await _box.delete(fileName);
@@ -143,7 +149,7 @@ class BoxImageManager extends ChangeNotifier {
     try {
       final bytes = await file.readAsBytes();
       _imagesInMemory[basename(firebasePath)] = bytes;
-      notifyListeners();
+      _notify();
 
       await _storage.ref(firebasePath.toUnixStyleSeparators()).putFile(file);
     } catch (ex) {
@@ -164,7 +170,7 @@ class BoxImageManager extends ChangeNotifier {
     try {
       _imagesInMemory[basename(firebasePath)] = data;
       saveImageLocal(data, filePath: firebasePath);
-      notifyListeners();
+      _notify();
     } catch (ex) {
       _logger.warning(
         "Failed to cache and save image in uploadData() locally.",
@@ -236,7 +242,7 @@ class BoxImageManager extends ChangeNotifier {
       final fileName = fileNameOverride ?? basename(pickedFile.path);
       await _box.put(fileName, bytes);
       _imagesInMemory[fileName] = bytes;
-      notifyListeners();
+      _notify();
 
       return ImageResult(
         fileName: basename(pickedFile.path),
@@ -259,7 +265,8 @@ class BoxImageManager extends ChangeNotifier {
 
     await _box.put(fileName, imageData);
     _imagesInMemory[fileName] = imageData;
-    notifyListeners();
+
+    _notify();
 
     _logger.fine("Successfully put $fileName in image cache box.");
 
@@ -307,5 +314,14 @@ class BoxImageManager extends ChangeNotifier {
     if (beforeLength < afterLength) return image;
 
     return result;
+  }
+
+  @Deprecated(
+    "Be aware, this will clear the box entirely, as well as the local image cache.",
+  )
+  Future<void> clear() async {
+    _logger.warning("Clearing all image data.");
+    await _box.clear();
+    _imagesInMemory.clear();
   }
 }

@@ -24,6 +24,19 @@ class _BoxImageManagerBuilderState extends State<BoxImageManagerBuilder> {
   Uint8List? _image;
   late final BoxImageManager _imageManager;
 
+  void _onImageManagerChanged() {
+    if (_image != null) {
+      _imageManager.removeListener(_onImageManagerChanged);
+    }
+
+    final latestImage = _imageManager.getLocalImage(widget.imagePath);
+    if (latestImage != null) {
+      setState(() {
+        _image = latestImage;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -34,17 +47,7 @@ class _BoxImageManagerBuilderState extends State<BoxImageManagerBuilder> {
       return;
     }
 
-    if (!widget.useFirebase) {
-      Future.delayed(Duration(seconds: 1), () {
-        setState(() {
-          final cachedBytes = _imageManager.getLocalImage(widget.imagePath);
-          if (cachedBytes != null) {
-            _image = cachedBytes;
-            return;
-          }
-        });
-      });
-    }
+    _imageManager.addListener(_onImageManagerChanged);
 
     if (widget.useFirebase) {
       _imageManager.getFirebaseImage(widget.imagePath).then((bytes) {
@@ -55,6 +58,12 @@ class _BoxImageManagerBuilderState extends State<BoxImageManagerBuilder> {
         });
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _imageManager.removeListener(_onImageManagerChanged);
+    super.dispose();
   }
 
   @override
