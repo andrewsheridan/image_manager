@@ -28,14 +28,17 @@ class BoxImageManager extends ChangeNotifier {
   final Map<String, Uint8List> _imagesInMemory = {};
   final Set<String> _retrievingFromFirebase = {};
   final Map<String, int> _failedToRetrieveFiles = {};
+  final bool _notifyImmediately;
 
   BoxImageManager({
     required FirebaseStorage? storage,
     required Box imageCacheBox,
     required ImagePicker imagePicker,
+    bool notifyImmediately = false,
   }) : _storage = storage,
        _box = imageCacheBox,
-       _imagePicker = imagePicker;
+       _imagePicker = imagePicker,
+       _notifyImmediately = notifyImmediately;
 
   static Future<BoxImageManager> open({
     required FirebaseStorage? storage,
@@ -56,24 +59,33 @@ class BoxImageManager extends ChangeNotifier {
     _failedToRetrieveFiles[path] = (_failedToRetrieveFiles[path] ?? 0) + 1;
   }
 
-  Uint8List? getLocalImage(String fileName) {
-    fileName = fileName.toUnixStyleSeparators();
-    _logger.finest("getLocal $fileName");
+  void _notify() {
+    if (_notifyImmediately) {
+      notifyListeners();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
+  }
 
-    _logger.fine("Retrieving image at $fileName.");
+  Uint8List? getLocalImage(String filePath) {
+    final fileName = basename(filePath);
+
+    _logger.fine("Retrieving image $fileName at $filePath");
 
     if (_imagesInMemory[fileName] != null) {
-      _logger.fine("Using cached version of image $fileName.");
+      _logger.finer("Using cached version of image $fileName.");
       return _imagesInMemory[fileName]!;
     }
 
     try {
       final boxBytes = _box.get(fileName);
       if (boxBytes is Uint8List) {
-        _logger.fine("Successfully loaded $fileName from image cache box.");
+        _logger.finer("Successfully loaded $fileName from image cache box.");
         _imagesInMemory[fileName] = boxBytes;
 
-        notifyListeners();
+        _notify();
         return boxBytes;
       }
 
@@ -131,12 +143,12 @@ class BoxImageManager extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteLocalImage(String fileName) async {
-    fileName = fileName.toUnixStyleSeparators();
-    _logger.info("Deleting locally stored file at $fileName");
+  Future<void> deleteLocalImage(String filePath) async {
+    final fileName = basename(filePath);
+    _logger.info("Deleting locally stored file $fileName at $filePath");
 
     _imagesInMemory.remove(fileName);
-    notifyListeners();
+    _notify();
 
     try {
       await _box.delete(fileName);
@@ -162,8 +174,8 @@ class BoxImageManager extends ChangeNotifier {
     firebasePath = firebasePath.toUnixStyleSeparators();
     try {
       final bytes = await file.readAsBytes();
-      _imagesInMemory[firebasePath] = bytes;
-      notifyListeners();
+      _imagesInMemory[basename(firebasePath)] = bytes;
+      _notify();
 
       if (_storage == null) return;
 
@@ -184,9 +196,9 @@ class BoxImageManager extends ChangeNotifier {
     firebasePath = firebasePath.toUnixStyleSeparators();
 
     try {
-      _imagesInMemory[firebasePath] = data;
+      _imagesInMemory[basename(firebasePath)] = data;
       saveImageLocal(data, filePath: firebasePath);
-      notifyListeners();
+      _notify();
     } catch (ex) {
       _logger.warning(
         "Failed to cache and save image in uploadData() locally.",
@@ -214,8 +226,11 @@ class BoxImageManager extends ChangeNotifier {
     );
   }
 
-  static String getImageContentType(String filePath) =>
-      "image/${extension(filePath).withFallback(".jpeg").split(".").last}";
+  static String getImageContentType(
+    String filePath, [
+    String extensionFallback = ".png",
+  ]) =>
+      "image/${extension(filePath).withFallback(extensionFallback).split(".").last}";
 
   Future<bool> firebaseFileExists(String firebasePath) async {
     if (_storage == null) return false;
@@ -256,7 +271,10 @@ class BoxImageManager extends ChangeNotifier {
         );
       }
 
-      await _box.put(basename(pickedFile.path), bytes);
+      final fileName = fileNameOverride ?? basename(pickedFile.path);
+      await _box.put(fileName, bytes);
+      _imagesInMemory[fileName] = bytes;
+      _notify();
 
       return ImageResult(
         fileName: basename(pickedFile.path),
@@ -273,18 +291,20 @@ class BoxImageManager extends ChangeNotifier {
     Uint8List imageData, {
     String? filePath,
   }) async {
-    filePath ??= "${DateTime.now().millisecondsSinceEpoch}.png";
-    filePath = filePath.toUnixStyleSeparators();
+    final fileName = filePath == null
+        ? "${DateTime.now().microsecondsSinceEpoch}.png"
+        : basename(filePath);
 
-    await _box.put(filePath, imageData);
-    _imagesInMemory[filePath] = imageData;
-    notifyListeners();
+    await _box.put(fileName, imageData);
+    _imagesInMemory[fileName] = imageData;
 
-    _logger.fine("Successfully put $filePath in image cache box.");
+    _notify();
+
+    _logger.fine("Successfully put $fileName in image cache box.");
 
     return ImageResult(
-      fileName: filePath,
-      imagePath: filePath,
+      fileName: fileName,
+      imagePath: filePath ?? fileName,
       bytes: imageData,
     );
   }
@@ -326,5 +346,14 @@ class BoxImageManager extends ChangeNotifier {
     if (beforeLength < afterLength) return image;
 
     return result;
+  }
+
+  @Deprecated(
+    "Be aware, this will clear the box entirely, as well as the local image cache.",
+  )
+  Future<void> clear() async {
+    _logger.warning("Clearing all image data.");
+    await _box.clear();
+    _imagesInMemory.clear();
   }
 }

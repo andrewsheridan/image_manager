@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_manager/image_manager.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:path/path.dart';
 
 import 'mock_box.dart';
 import 'mock_firebase_storage.dart';
@@ -83,6 +84,7 @@ void main() {
     storage: storage,
     imageCacheBox: box,
     imagePicker: imagePicker,
+    notifyImmediately: true,
   );
 
   void setupRefPath(String path) {
@@ -126,7 +128,7 @@ void main() {
     final manager = build();
     await manager.insertFirebaseImage(data, fileName);
 
-    verify(() => box.put(fileName, data));
+    verify(() => box.put(basename(fileName), data));
     verify(() => reference.putData(data, any()));
   });
 
@@ -139,12 +141,12 @@ void main() {
       final manager = build();
       await manager.saveImageLocal(data, filePath: fileName);
 
-      verify(() => box.put(fileName, data));
+      verify(() => box.put(basename(fileName), data));
       verifyNever(() => reference.putData(data, any()));
 
       final result = await manager.getFirebaseImage(fileName);
       verifyNever(() => reference.getData());
-      verifyNever(() => box.get(fileName));
+      verifyNever(() => box.get(basename(fileName)));
       expect(result, data);
     },
   );
@@ -154,13 +156,13 @@ void main() {
     () async {
       final fileName = "$firebaseCollectionPath/filename.png";
       setupRefPath(fileName);
-      boxData[fileName] = data;
+      boxData[basename(fileName)] = data;
 
       final manager = build();
 
       final result = await manager.getFirebaseImage(fileName);
       verifyNever(() => reference.getData());
-      verify(() => box.get(fileName));
+      verify(() => box.get(basename(fileName)));
       expect(result, data);
     },
   );
@@ -175,8 +177,8 @@ void main() {
 
       final result = await manager.getFirebaseImage(fileName);
       verify(() => reference.getData());
-      verify(() => box.get(fileName));
-      verify(() => box.put(fileName, data));
+      verify(() => box.get(basename(fileName)));
+      verify(() => box.put(basename(fileName), data));
       expect(result, data);
     },
   );
@@ -188,6 +190,6 @@ void main() {
     final manager = build();
     await manager.deleteFirebaseImage(fileName);
     verify(() => reference.delete());
-    verify(() => box.delete(fileName));
+    verify(() => box.delete(basename(fileName)));
   });
 }

@@ -20,7 +20,7 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
   @protected
   final Uuid uuid;
   @protected
-  final Logger logger = Logger("PoolImageManager<$T>");
+  final Logger logger;
 
   final CompressionSettings compressionSettings;
 
@@ -40,7 +40,9 @@ abstract class PoolImageManager<T> extends ChangeNotifier {
     required FirebaseAuth firebaseAuth,
     required this.compressionSettings,
     required this.uuid,
-  }) : auth = firebaseAuth {
+    required String loggerName,
+  }) : auth = firebaseAuth,
+       logger = Logger(loggerName) {
     _itemAddedSubscription = hybridPool.itemAddedStream.listen(_onItemAdded);
     _itemUpdatedSubscription = hybridPool.itemUpdatedStream.listen(
       _onItemUpdated,
