@@ -17,7 +17,7 @@ import 'package:path/path.dart';
 import '../model/compression_settings.dart';
 
 class BoxImageManager extends ChangeNotifier {
-  final FirebaseStorage _storage;
+  final FirebaseStorage? _storage;
   final Box _box;
   final ImagePicker _imagePicker;
 
@@ -30,12 +30,27 @@ class BoxImageManager extends ChangeNotifier {
   final Map<String, int> _failedToRetrieveFiles = {};
 
   BoxImageManager({
-    required FirebaseStorage storage,
+    required FirebaseStorage? storage,
     required Box imageCacheBox,
     required ImagePicker imagePicker,
   }) : _storage = storage,
        _box = imageCacheBox,
        _imagePicker = imagePicker;
+
+  static Future<BoxImageManager> open({
+    required FirebaseStorage? storage,
+    required ImagePicker imagePicker,
+    required String? path,
+  }) async {
+    final box = await Hive.openBox("ImageManager", path: path);
+    final imageManager = BoxImageManager(
+      storage: storage,
+      imageCacheBox: box,
+      imagePicker: imagePicker,
+    );
+
+    return imageManager;
+  }
 
   void _markFailed(String path) {
     _failedToRetrieveFiles[path] = (_failedToRetrieveFiles[path] ?? 0) + 1;
@@ -90,6 +105,8 @@ class BoxImageManager extends ChangeNotifier {
       return null;
     }
 
+    if (_storage == null) return null;
+
     try {
       _retrievingFromFirebase.add(firebasePath);
 
@@ -132,6 +149,8 @@ class BoxImageManager extends ChangeNotifier {
     _logger.info("Deleting cloud file at $firebasePath");
     await deleteLocalImage(firebasePath);
 
+    if (_storage == null) return;
+
     try {
       await _storage.ref(firebasePath.toUnixStyleSeparators()).delete();
     } catch (ex) {
@@ -145,6 +164,8 @@ class BoxImageManager extends ChangeNotifier {
       final bytes = await file.readAsBytes();
       _imagesInMemory[firebasePath] = bytes;
       notifyListeners();
+
+      if (_storage == null) return;
 
       await _storage.ref(firebasePath.toUnixStyleSeparators()).putFile(file);
     } catch (ex) {
@@ -173,6 +194,8 @@ class BoxImageManager extends ChangeNotifier {
     }
 
     try {
+      if (_storage == null) return;
+
       _logger.fine("Uploading data to $firebasePath of type $contentType.");
 
       final metadata = SettableMetadata(contentType: contentType);
@@ -195,6 +218,8 @@ class BoxImageManager extends ChangeNotifier {
       "image/${extension(filePath).withFallback(".jpeg").split(".").last}";
 
   Future<bool> firebaseFileExists(String firebasePath) async {
+    if (_storage == null) return false;
+
     try {
       await _storage.ref(firebasePath).getDownloadURL();
       return true;
