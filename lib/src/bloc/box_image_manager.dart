@@ -157,9 +157,14 @@ class BoxImageManager extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteFirebaseImage(String firebasePath) async {
+  Future<void> deleteFirebaseImage(
+    String firebasePath, {
+    bool deleteLocalCopy = true,
+  }) async {
     _logger.info("Deleting cloud file at $firebasePath");
-    await deleteLocalImage(firebasePath);
+    if (deleteLocalCopy) {
+      await deleteLocalImage(firebasePath);
+    }
 
     if (_storage == null) return;
 
