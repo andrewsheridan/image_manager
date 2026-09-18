@@ -202,7 +202,7 @@ class BoxImageManager extends ChangeNotifier {
 
     try {
       _imagesInMemory[basename(firebasePath)] = data;
-      saveImageLocal(data, filePath: firebasePath);
+      await saveImageLocal(data, filePath: firebasePath);
       _notify();
     } catch (ex) {
       _logger.warning(
